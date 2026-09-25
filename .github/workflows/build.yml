@@ -1,64 +1,85 @@
 name: Build
 
+# A full AOSP build needs ~400 GB of disk, 32+ GB of RAM and several hours,
+# which is far beyond GitHub-hosted runners, so this runs on a self-hosted runner.
+#
+# Required configuration (Settings -> Secrets and variables -> Actions):
+#   vars.KEYS_REPO      private repository holding the release keys (e.g. mkostersitz/duo-de-keys)
+#   secrets.KEYS_TOKEN  token able to read KEYS_REPO
+#   secrets.GITHUB_TOKEN is used to publish the draft release
+
 on:
   workflow_dispatch:
     inputs:
       build_variant:
-        description: 'Build variant to test'
-        default: 'treble_arm64_bgN'
+        description: 'Build variant (treble_arm64_bgN = gapps, treble_arm64_bvN = vanilla, empty = both)'
+        default: ''
         required: false
         type: string
-  push:
-    branches:
-      - android-14.0
-    paths-ignore:
-      - '.github/**'
-      - 'config/**'
+      release:
+        description: 'Publish a draft release with the images'
+        default: false
+        required: false
+        type: boolean
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: self-hosted
+    timeout-minutes: 1440
+    permissions:
+      contents: write
     steps:
+      - name: Setup Environment
+        run: |
+          git lfs install
+          mkdir -p ${{ github.workspace }}/aosp
+          echo "RELEASE_TITLE=$(date +'v%Y.%m.%d')" >> $GITHUB_ENV
+
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set Build Variant
-        run: echo "BUILD_VARIANT=${{ inputs.build_variant || 'treble_arm64_bgN' }}" >> $GITHUB_ENV
-
-      - name: Build Image
-        run: docker build -f build/Dockerfile -t ponces/treble .
+        with:
+          path: ./aosp/treble_aosp
 
       - name: Get Keys
         uses: actions/checkout@v4
         with:
-          repository: ponces/vendor_ponces-priv
-          token: ${{ secrets.GH_TOKEN }}
-          path: vendor_ponces-priv
+          repository: ${{ vars.KEYS_REPO }}
+          token: ${{ secrets.KEYS_TOKEN }}
+          path: ./aosp/duo-de-keys
 
       - name: Build ROM
-        run: |
-          mkdir builds
-          docker run --rm \
-                     --privileged \
-                     --name test \
-                     --volume ${{ github.workspace }}/builds:/root/builds \
-                     --volume ${{ github.workspace }}/vendor_ponces-priv:/aosp/vendor/ponces-priv \
-                     ponces/treble treblebuild ${{ env.BUILD_VARIANT }}
+        run: ./treble_aosp/build.sh
+        env:
+          OUTPUT_DIR: ${{ github.workspace }}/output
+          KEYS_DIR: ${{ github.workspace }}/aosp/duo-de-keys
+          BUILD_VARIANT: ${{ inputs.build_variant }}
+          GH_REPO: ${{ github.repository }}
+        working-directory: ${{ github.workspace }}/aosp
 
       - name: Upload ROM
         uses: actions/upload-artifact@v4
+        if: ${{ !inputs.release }}
         with:
-          name: ${{ env.BUILD_VARIANT }}
-          path: builds/*.xz
+          name: ${{ inputs.build_variant || 'duo-de' }}
+          path: ${{ github.workspace }}/output/*.xz
 
-  cleanup:
-    needs: build
-    runs-on: self-hosted
-    if: ${{ always() }}
-    steps:
-      - name: Cleanup
-        run: docker stop test || true
+      - name: Upload OTA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ota
+          path: ${{ github.workspace }}/aosp/treble_aosp/config/ota.json
+
+      - name: Release ROM
+        uses: softprops/action-gh-release@v2
+        if: ${{ inputs.release }}
+        with:
+          files: ${{ github.workspace }}/output/*.xz
+          name: ${{ env.RELEASE_TITLE }}
+          tag_name: ${{ env.RELEASE_TITLE }}
+          body: "## Changelog\n- ...\n\n## Notes\n- ..."
+          draft: true
+          prerelease: false

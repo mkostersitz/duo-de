@@ -1,4 +1,4 @@
-From 962a567a9efbf3a8b646c6af4b371ed50d384352 Mon Sep 17 00:00:00 2001
+From a5c647b66b2e00be47f2f6c120a9f803d6cd75b5 Mon Sep 17 00:00:00 2001
 From: Archfx <cybx@live.com>
 Date: Thu, 13 Feb 2025 22:06:44 -0500
 Subject: [PATCH] Add permission to posture processor to send broadcasts
@@ -19,10 +19,10 @@ index 6493ba4..c34d6c1 100644
 -    ro.system.ota.json_url=https://raw.githubusercontent.com/ponces/treble_aosp/android-14.0/config/ota.json
 +    ro.system.ota.json_url=https://raw.githubusercontent.com/Archfx/duo-de/main-15/config/ota.json
 diff --git a/base.mk b/base.mk
-index 3fd0ce3..ae0ff70 100644
+index 8bd3775..77f5df4 100644
 --- a/base.mk
 +++ b/base.mk
-@@ -292,4 +292,8 @@ PRODUCT_PACKAGES += \
+@@ -284,4 +284,8 @@ PRODUCT_PACKAGES += \
  	SurfaceDuoAppHintingOverlay \
  	libms_pen_charger
  
@@ -33,5 +33,5 @@ index 3fd0ce3..ae0ff70 100644
  $(call inherit-product-if-exists, vendor/surface/prebuilts/bootanimation/bootanimation.mk)
 \ No newline at end of file
 -- 
-2.34.1
+2.43.0
 

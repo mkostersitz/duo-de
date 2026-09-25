@@ -1,4 +1,4 @@
-From 9e25b8179339a2a40c4f940121855d6fbe4ec75f Mon Sep 17 00:00:00 2001
+From fffcb3094380897af7b615ae78f80e715ffb3b49 Mon Sep 17 00:00:00 2001
 From: Archfx <cybx@live.com>
 Date: Tue, 7 Jan 2025 16:56:22 -0500
 Subject: [PATCH] add initialX
@@ -9,10 +9,10 @@ Change-Id: If03f869728aa1f6bb38c0f9edb5a542d7be0e420
  1 file changed, 3 insertions(+)
 
 diff --git a/src/com/android/launcher3/DeviceProfile.java b/src/com/android/launcher3/DeviceProfile.java
-index 68fcdbc608..f843b1e250 100644
+index ebbcf28560..d96d4dae47 100644
 --- a/src/com/android/launcher3/DeviceProfile.java
 +++ b/src/com/android/launcher3/DeviceProfile.java
-@@ -317,6 +317,9 @@ public class DeviceProfile {
+@@ -320,6 +320,9 @@ public class DeviceProfile {
      // DragController
      public int flingToDeleteThresholdVelocity;
  
@@ -23,5 +23,5 @@ index 68fcdbc608..f843b1e250 100644
      @VisibleForTesting
      public DeviceProfile() {
 -- 
-2.34.1
+2.43.0
 

@@ -8,7 +8,7 @@ layers of patches, plus a few Surface Duo specific repositories:
 | TrebleDroid patches (GSI compatibility with old vendors and kernels) | `patches/trebledroid` | [TrebleDroid](https://github.com/TrebleDroid) through [ponces/treble_aosp](https://github.com/ponces/treble_aosp) |
 | ponces patches (gapps, face unlock, OmniJaws, ThemePicker, ...) | `patches/personal`, `patches/staging` | [ponces/treble_aosp](https://github.com/ponces/treble_aosp) |
 | DUO-DE patches (posture engine, dual-screen launcher, pen charger, ...) | `patches/duo` | this repository |
-| Duo overlays, vendor blobs, PostureProcessor, Treble app | `build/default.xml` | `Archfx/duoOverlays`, `Archfx/duoVendor`, `Archfx/duoPosture`, `Archfx/duoTreble` |
+| Duo overlays, vendor blobs, PostureProcessor, Treble app | `build/default.xml` | `mkostersitz/duoOverlays`, `duoVendor`, `duoPosture`, `duoTreble` (forks of the `Archfx/*` repos) |
 
 `patch.sh` maps each patch folder to a path in the AOSP tree (`platform_frameworks_base` goes to
 `frameworks/base`, and so on) and applies the patches with `git am`, in this order:
@@ -95,7 +95,7 @@ The patches were checked with `git am` against TrebleDroid's `android-16.0.0_r2-
 frameworks/base, packages/apps/Settings and system/sepolicy, TrebleDroid's `device_phh_treble@android-16.0`,
 and the Android 16 (25Q2) Launcher3 sources. Only a real build proves that they compile, so the
 first build may still need fixes. The most likely places are the Launcher3 patch and the
-`Archfx/duoPosture` app, which uses hidden platform APIs.
+PostureProcessor app (`duoPosture`), which uses hidden platform APIs.
 
 ## Moving to the next Android version (A16 QPR / A17 / ...)
 

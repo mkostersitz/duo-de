@@ -20,9 +20,9 @@
   <project path="vendor/gapps" name="vendor_gapps" remote="azure" revision="android-16.0" clone-depth="1" />
   <project path="vendor/ponces" name="ponces/vendor_ponces" remote="github" revision="android-16.0" />
 
-  <!-- DUO-DE specifics. Fork these and point them to your own account to change them. -->
-  <project path="packages/thain/rro_overlays" name="Archfx/duoOverlays" remote="github" revision="main" />
-  <project path="packages/thain/services/PostureProcessor" name="Archfx/duoPosture" remote="github" revision="main" />
-  <project path="treble_app" name="Archfx/duoTreble" remote="github" revision="master" />
-  <project path="vendor/surface" name="Archfx/duoVendor" remote="github" revision="main" />
+  <!-- DUO-DE specifics, forked from Archfx/duo* -->
+  <project path="packages/thain/rro_overlays" name="mkostersitz/duoOverlays" remote="github" revision="main" />
+  <project path="packages/thain/services/PostureProcessor" name="mkostersitz/duoPosture" remote="github" revision="main" />
+  <project path="treble_app" name="mkostersitz/duoTreble" remote="github" revision="master" />
+  <project path="vendor/surface" name="mkostersitz/duoVendor" remote="github" revision="main" />
 </manifest>

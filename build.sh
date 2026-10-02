@@ -165,7 +165,12 @@ if [ -z "$SKIP_SYNC" ]; then
 fi
 setupEnv
 buildTrebleApp
-[ ! -z "$BUILD_VARIANT" ] && buildVariant "$BUILD_VARIANT" || buildVariants
+# if/else rather than "a && b || c": inside an && / || list "set -e" is ignored, so a failed build went unnoticed
+if [ ! -z "$BUILD_VARIANT" ]; then
+    buildVariant "$BUILD_VARIANT"
+else
+    buildVariants
+fi
 generatePackages
 generateOta
 # Set UPLOAD=1 to publish a GitHub release (needs an authenticated `gh`)

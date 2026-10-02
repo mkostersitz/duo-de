@@ -31,6 +31,17 @@ All of these can be overridden with environment variables when you run `build.sh
 - The packages listed in `build/Dockerfile`, or use the Docker image.
 - Release keys (see below).
 
+## Preparing the build machine
+
+`setup-host.sh` checks the CPU, RAM, disk, OS, packages and network, and with `--install`
+installs everything that is missing (it uses `sudo`):
+
+```shell
+curl -sfLO https://raw.githubusercontent.com/mkostersitz/duo-de/main-16/setup-host.sh
+bash setup-host.sh ~/aosp             # check only
+bash setup-host.sh --install ~/aosp   # install packages, repo, git-lfs and fix the sandbox setting
+```
+
 ## Building
 
 ```shell

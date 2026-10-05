@@ -13,9 +13,6 @@
   <project path="prebuilts/vndk/v29" name="platform/prebuilts/vndk/v29" remote="aosp" revision="bef5d37dda9360940964f097d612c8032e140961" clone-depth="1" />
 
   <!-- ponces (treble_aosp) -->
-  <!-- ponces/android_packages_apps_ParanoidSense is no longer public, use the AOSPA upstream (beryl = Android 16) -->
-  <project path="packages/apps/ParanoidSense" name="AOSPA/android_packages_apps_ParanoidSense" remote="github" revision="beryl" />
-  <project path="packages/services/OmniJaws" name="crdroidandroid/android_packages_services_OmniJaws" remote="github" revision="16.0" />
   <project path="treble_adapter" name="ponces/treble_adapter" remote="github" revision="master" />
   <project path="vendor/gapps" name="vendor_gapps" remote="azure" revision="android-16.0" clone-depth="1" />
   <project path="vendor/ponces" name="ponces/vendor_ponces" remote="github" revision="android-16.0" />

@@ -60,7 +60,7 @@ fi
 echo "--> Operating system"
 . /etc/os-release
 case "$VERSION_ID" in
-    22.04|24.04) ok "$PRETTY_NAME" ;;
+    22.04|24.04|26.04) ok "$PRETTY_NAME" ;;
     *) warn "$PRETTY_NAME is not an LTS release. It may work, but 24.04 LTS is what the build is tested with" ;;
 esac
 

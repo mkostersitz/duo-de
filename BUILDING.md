@@ -6,7 +6,7 @@ layers of patches, plus a few Surface Duo specific repositories:
 | Layer | Where | Source |
 |-------|-------|--------|
 | TrebleDroid patches (GSI compatibility with old vendors and kernels) | `patches/trebledroid` | [TrebleDroid](https://github.com/TrebleDroid) through [ponces/treble_aosp](https://github.com/ponces/treble_aosp) |
-| ponces patches (gapps, face unlock, OmniJaws, ThemePicker, ...) | `patches/personal`, `patches/staging` | [ponces/treble_aosp](https://github.com/ponces/treble_aosp) |
+| ponces patches (gapps, face unlock, ThemePicker, ...) | `patches/personal`, `patches/staging` | [ponces/treble_aosp](https://github.com/ponces/treble_aosp) |
 | DUO-DE patches (posture engine, dual-screen launcher, pen charger, ...) | `patches/duo` | this repository |
 | Duo overlays, vendor blobs, PostureProcessor, Treble app | `build/default.xml` | `mkostersitz/duoOverlays`, `duoVendor`, `duoPosture`, `duoTreble` (forks of the `Archfx/*` repos) |
 
@@ -92,8 +92,13 @@ The CI workflow reads the keys from a private repository (`vars.KEYS_REPO` and `
 - `build.sh`: `android-16.0.0_r2`, `bp2a` lunch targets, a staging patch step, and the sync and patch
   steps are enabled again. It also takes the version, keys and repository from variables.
 - `build/default.xml`: all TrebleDroid and ponces repositories moved to their `android-16.0` or `16.0`
-  branches. `ponces/android_packages_apps_ParanoidSense` is no longer public, so it now uses
-  `AOSPA/android_packages_apps_ParanoidSense` (`beryl`). The private `vendor/ponces-priv` project is not used.
+  branches. `ponces/android_packages_apps_ParanoidSense` is no longer public, and the AOSPA repo
+  (`AOSPA/android_packages_apps_ParanoidSense`) lacks the face libraries it needs (`vendor.aospa.biometrics.face.impl`
+  and `.required`), so it now uses `PixelOS-AOSP/packages_apps_ParanoidSense` (`sixteen`, pinned to a commit), which ships
+  them. Note that these are closed-source Megvii binaries. The private `vendor/ponces-priv` project is not used.
+- OmniJaws (lockscreen weather) is left out on purpose: `crdroidandroid/android_packages_services_OmniJaws@16.0` now needs
+  modules that are not in any public repo (`ax_compose`, `com.crdroid.apps.resources`). A `patches/duo/vendor_ponces` patch
+  removes it from `PRODUCT_PACKAGES`, and the two ponces patches that wire it into SystemUI and Settings are removed.
 - `patches/trebledroid`, `patches/personal`, `patches/staging`: copied from `ponces/treble_aosp@android-16.0`.
 - `patches/duo/device_phh_treble/0001`: rebased because `sepolicy/service.te` changed upstream.
 - `patches/duo/platform_packages_apps_Launcher3/0001`: in Android 16, `LauncherAppState` became a small Kotlin

@@ -58,7 +58,8 @@ Useful variables:
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `BUILD_VARIANT` (or first argument) | both variants | e.g. `treble_arm64_bvN` |
-| `SKIP_SYNC` | unset | `1` skips `repo init/sync` and patching (rebuild an already patched tree) |
+| `JOBS` | all threads (all but 2 above 8 threads) | parallel make jobs |
+| `SKIP_SYNC` | unset | `1` skips `repo init/sync`, patching and `installclean`, so it also resumes an interrupted build |
 | `KEYS_DIR` | `$PWD/duo-de-keys` | release keys used by `sign.sh`. They are generated when missing |
 | `KEYS_SUBJECT` | `/C=US/.../CN=duo-de` | certificate subject for generated keys |
 | `OUTPUT_DIR` | `$PWD/duo-de/builds` | where the `.img.xz` files end up |
@@ -75,6 +76,17 @@ docker run --rm -it -v $PWD/work:/work/src -w /work/src -e BUILD_ROOT=/work/treb
 ```
 
 The AOSP tree, the keys (`work/duo-de-keys`) and the images (`work/duo-de/builds`) stay in `./work`.
+
+## Notes from a first build on Ubuntu 26.04
+
+- Ubuntu 26.04 needed no package renames, `setup-host.sh --install` works as is.
+- `setup-host.sh` reports a FAIL below 8 threads. That only warns about build time: a 4-core EPYC built the vanilla
+  variant in about 8.5 hours after the sync.
+- Run the build in `tmux` (or another detached session) so it survives a closed terminal.
+- `OmniJaws` (lockscreen weather) is not built: its Android.bp needs modules that are not in any public repository
+  (`ax_compose`, `com.crdroid.apps.resources`), and Soong fails with "depends on undefined module" if it is left in.
+  `ParanoidSense` (face unlock) comes from the PixelOS fork for the same reason, see `build/default.xml` and
+  `patches/duo/vendor_ponces`.
 
 ## Release keys
 

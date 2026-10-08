@@ -9,6 +9,9 @@ echo
 
 set -e
 
+# Soong and the Java toolchain open a lot of files at once
+ulimit -n 65536 2>/dev/null || true
+
 # ---------------------------------------------------------------------------
 # Version knobs. Bumping to a newer Android release is mostly a matter of
 # changing these values (plus refreshing patches/ and build/default.xml).
@@ -26,6 +29,12 @@ set -e
 [ -z "$OTA_BRANCH" ] && OTA_BRANCH="main-16"
 
 export BUILD_NUMBER="$(date +%y%m%d)"
+
+# Parallel make jobs. On machines with more than 8 threads two are left free for the desktop,
+# on small ones (4-8 threads) every thread is used. Override with JOBS=n
+if [ -z "$JOBS" ]; then
+    if [ $(nproc) -gt 8 ]; then JOBS=$(nproc --ignore=2); else JOBS=$(nproc); fi
+fi
 
 [ -z "$BUILD_ROOT" ] && BUILD_ROOT="$PWD/treble_aosp"
 [ -z "$OUTPUT_DIR" ] && OUTPUT_DIR="$PWD/duo-de/builds"
@@ -101,9 +110,12 @@ buildTrebleApp() {
 buildVariant() {
     echo "--> Building $1"
     lunch "$1"-"$RELEASE_CONFIG"-userdebug
-    make -j$(nproc --ignore=2) installclean
-    make -j$(nproc --ignore=2) systemimage
-    make -j$(nproc --ignore=2) target-files-package otatools
+    # installclean wipes the installed images, which defeats SKIP_SYNC=1 when resuming an interrupted build
+    if [ -z "$SKIP_SYNC" ]; then
+        make -j$JOBS installclean
+    fi
+    make -j$JOBS systemimage
+    make -j$JOBS target-files-package otatools
     bash $BUILD_ROOT/sign.sh "$KEYS_DIR" $OUT/signed-target_files.zip
     unzip -joq $OUT/signed-target_files.zip IMAGES/system.img -d $OUT
     mv $OUT/system.img $OUTPUT_DIR/system-"$1".img
@@ -157,7 +169,7 @@ uploadOTA() {
 
 START=$(date +%s)
 
-# Set SKIP_SYNC=1 to rebuild an already synced and patched tree
+# Set SKIP_SYNC=1 to rebuild or resume an already synced and patched tree (this also skips installclean)
 if [ -z "$SKIP_SYNC" ]; then
     initRepos
     syncRepos

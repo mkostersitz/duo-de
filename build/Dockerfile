@@ -1,67 +1,48 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04 AS base
 
-COPY . /aosp/treble_aosp
-RUN ln -s /aosp/treble_aosp/build.sh /usr/bin/treblebuild && \
-    ln -s /aosp/treble_aosp/sync.sh /usr/bin/treblesync
+USER root
 
 ARG DEBIAN_FRONTEND=noninteractive
 RUN dpkg --add-architecture i386 && \
-    apt update && apt install -y \
-    aapt \
-    bc \
-    bison \
-    build-essential \
-    curl \
-    dos2unix \
-    flex \
-    fontconfig \
-    g++-multilib \
-    gcc-multilib \
-    git \
-    gnupg \
-    gperf \
-    imagemagick \
-    jq \
-    libncurses5 \
-    libstdc++6 \
-    libstdc++6:i386 \
-    libxml2-utils \
-    locales \
-    lunzip \
-    lzip \
-    lzop \
-    m4 \
-    openjdk-17-jdk \
-    python-is-python3 \
-    python3-pip \
-    rsync \
-    simg2img \
-    squashfs-tools \
-    sudo \
-    tree \
-    unzip \
-    wget \
-    xattr \
-    xmlstarlet \
-    xsltproc \
-    zip \
-    zlib1g \
-    zlib1g:i386 ; \
-    apt clean autoclean
+    apt update && \
+    apt upgrade -y && \
+    apt install -y aapt android-sdk-libsparse-utils bc bison build-essential curl dos2unix flex fontconfig \
+                   g++-multilib gcc-multilib git gnupg gperf imagemagick jq lib32z1-dev libc6-dev-i386 \
+                   libelf-dev libgl1-mesa-dev libncurses-dev libssl-dev libstdc++6 libx11-dev libxml2-utils \
+                   locales lunzip lzip lzop m4 make nano openjdk-17-jdk python-is-python3 python3-pip \
+                   rsync squashfs-tools sudo tree unzip wget x11proto-core-dev xattr xmlstarlet xsltproc \
+                   zip zlib1g-dev && \
+    apt clean -y && \
+    apt autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN locale-gen en_US.UTF-8 && \
     dpkg-reconfigure locales
 
-RUN curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo && \
-    chmod a+x /usr/local/bin/repo
+RUN curl -sfL https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo && \
+    chmod +x /usr/local/bin/repo
 
-RUN curl https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
-    apt update && apt install git-lfs && \
-    git lfs install
+RUN curl -sfL https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
+    apt install -y git-lfs
 
-RUN git config --global user.name "Archfx" && \
-    git config --global user.email cybx@live.com && \
-    git config --global color.ui auto
+USER ubuntu
+WORKDIR /work
 
-USER root
-WORKDIR /aosp
+COPY --chown=ubuntu:ubuntu . /work/treble_aosp
+
+RUN git lfs install && \
+    git config --global alias.pushfwl "push --force-with-lease" && \
+    git config --global color.ui auto && \
+    git config --global core.editor "nano" && \
+    git config --global push.autoSetupRemote true && \
+    git config --global rebase.autosquash true && \
+    git config --global user.name "duo-de builder" && \
+    git config --global user.email duo-de@users.noreply.github.com
+
+FROM base AS treblebuild
+
+ENTRYPOINT [ "/work/treble_aosp/build.sh" ]
+
+FROM base AS treblesync
+
+ENTRYPOINT [ "/work/treble_aosp/sync.sh" ]

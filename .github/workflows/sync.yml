@@ -11,12 +11,13 @@ jobs:
 
     steps:
     - name: Checkout duo-de
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Checkout treble_aosp
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: ponces/treble_aosp
+        ref: android-16.0
         path: treble_aosp
 
     - name: Replace folder
@@ -25,6 +26,8 @@ jobs:
         cp -R ./treble_aosp/patches/trebledroid ./patches/trebledroid
         rm -rf ./patches/personal
         cp -R ./treble_aosp/patches/personal ./patches/personal
+        rm -rf ./patches/staging
+        cp -R ./treble_aosp/patches/staging ./patches/staging
         rm -rf ./treble_aosp
 
     - name: Configure Git
@@ -51,7 +54,7 @@ jobs:
       with:
         commit-message: "feat: sync with latest sources of TrebleDroid [via Ponces]"
         branch: sync-bot
-        base: main-15
+        base: main-16
         title: "TrebleDroid patches"
         body: "This PR updates the patches from TrebleDroid."
         labels: 'automated-pr'

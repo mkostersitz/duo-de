@@ -1,4 +1,4 @@
-From dfec2d1ff48940192d4f7b032b025a8bcfb69e8c Mon Sep 17 00:00:00 2001
+From c93bf6f4fdce0026b2a71b86c5fa03bf98539b2d Mon Sep 17 00:00:00 2001
 From: Archfx <cybx@live.com>
 Date: Wed, 2 Apr 2025 10:20:19 -0400
 Subject: [PATCH] Archfx DUO-DE Launcher3 Modifications
@@ -10,18 +10,18 @@ Change-Id: I26f9e98f60c3eb24cc255a33a2b2fc07949b4891
  res/values/strings.xml                        |  6 ++
  res/xml/launcher_preferences.xml              | 18 +++++-
  src/com/android/launcher3/DeviceProfile.java  | 10 ++-
- .../android/launcher3/LauncherAppState.java   | 19 ++++++
  .../allapps/AllAppsTransitionController.java  | 27 ++++++++
+ .../launcher3/model/ModelInitializer.kt       | 15 +++++
  .../touch/WorkspaceTouchListener.java         | 56 ++++++++++++++++
  .../util/ActivityOptionsWrapper.java          | 64 +++++++++++++++++++
  .../launcher3/views/ActivityContext.java      |  3 +
- 10 files changed, 209 insertions(+), 4 deletions(-)
+ 10 files changed, 205 insertions(+), 4 deletions(-)
 
 diff --git a/AndroidManifest.xml b/AndroidManifest.xml
-index 89291c1ff9..1317970450 100644
+index 030c67b22e..9c65b5a5b3 100644
 --- a/AndroidManifest.xml
 +++ b/AndroidManifest.xml
-@@ -72,5 +72,13 @@
+@@ -73,5 +73,13 @@
                  android:value="${packageName}.grid_control" />
          </activity>
  
@@ -49,13 +49,13 @@ index b4740e5b51..aa1fd4d461 100644
  
  </PreferenceScreen>
 diff --git a/res/values/strings.xml b/res/values/strings.xml
-index cdfbefea64..aad4015339 100644
+index 6c980c4751..eb37e4555c 100644
 --- a/res/values/strings.xml
 +++ b/res/values/strings.xml
-@@ -533,4 +533,10 @@
-     <string name="ps_add_button_label">Install</string>
+@@ -549,4 +549,10 @@
      <!-- Content description for install app icon -->
      <string name="ps_add_button_content_description">Install apps to Private Space</string>
+     <string name="ps_app_content_description">Add files and more to Private Space</string>
 +
 +    <!-- DUO-DE Strings for the app launch mode -->
 +    <string name="allow_freeform_mode_tablet">Tablet Mode Floating Windows</string>
@@ -95,10 +95,10 @@ index 284ab9e718..25c5a05e1c 100644
 +
  </androidx.preference.PreferenceScreen>
 diff --git a/src/com/android/launcher3/DeviceProfile.java b/src/com/android/launcher3/DeviceProfile.java
-index 6ef5e8a236..12440a67b3 100644
+index e17f5b26c5..ebbcf28560 100644
 --- a/src/com/android/launcher3/DeviceProfile.java
 +++ b/src/com/android/launcher3/DeviceProfile.java
-@@ -78,6 +78,8 @@ import java.io.PrintWriter;
+@@ -76,6 +76,8 @@ import java.io.PrintWriter;
  import java.util.Locale;
  import java.util.function.Consumer;
  
@@ -107,7 +107,7 @@ index 6ef5e8a236..12440a67b3 100644
  @SuppressLint("NewApi")
  public class DeviceProfile {
  
-@@ -833,8 +835,12 @@ public class DeviceProfile {
+@@ -832,8 +834,12 @@ public class DeviceProfile {
          }
  
          if (shouldShowAllAppsOnSheet()) {
@@ -122,48 +122,11 @@ index 6ef5e8a236..12440a67b3 100644
          } else {
              allAppsPadding.top = 0;
              allAppsShiftRange =
-diff --git a/src/com/android/launcher3/LauncherAppState.java b/src/com/android/launcher3/LauncherAppState.java
-index a53238da3a..3696bcf357 100644
---- a/src/com/android/launcher3/LauncherAppState.java
-+++ b/src/com/android/launcher3/LauncherAppState.java
-@@ -99,6 +99,14 @@ public class LauncherAppState implements SafeCloseable {
-         return mContext;
-     }
- 
-+    public void restartLauncher(Context context) {
-+        // Restart the launcher
-+        MODEL_EXECUTOR.execute(() -> {
-+            android.os.Process.killProcess(android.os.Process.myPid());
-+       });
-+        Log.d("RestartReceiver by Archfx", "Launcher restarted.");
-+    }
-+
-     @SuppressWarnings("NewApi")
-     public LauncherAppState(Context context) {
-         this(context, LauncherFiles.APP_ICONS_DB);
-@@ -113,6 +121,17 @@ public class LauncherAppState implements SafeCloseable {
-             }
-         });
- 
-+        // Add RestartReceiver to listen for restart intent
-+        SimpleBroadcastReceiver restartReceiver = new SimpleBroadcastReceiver(UI_HELPER_EXECUTOR, intent -> {
-+            if ("com.thain.duo.LAUNCHER_RESTART".equals(intent.getAction())) {
-+                Log.d("RestartReceiver by Archfx", "Received broadcast to restart the launcher.");
-+                restartLauncher(context);
-+            }
-+        });
-+        mContext.registerReceiver(restartReceiver, new IntentFilter("com.thain.duo.LAUNCHER_RESTART"),
-+                            RECEIVER_EXPORTED);
-+        mOnTerminateCallback.add(() -> mContext.unregisterReceiver(restartReceiver));
-+
-         ModelLauncherCallbacks callbacks = mModel.newModelCallbacks();
-         LauncherApps launcherApps = mContext.getSystemService(LauncherApps.class);
-         launcherApps.registerCallback(callbacks);
 diff --git a/src/com/android/launcher3/allapps/AllAppsTransitionController.java b/src/com/android/launcher3/allapps/AllAppsTransitionController.java
-index 8554de566d..78b11fe9b6 100644
+index 350f763939..0b0301d8ed 100644
 --- a/src/com/android/launcher3/allapps/AllAppsTransitionController.java
 +++ b/src/com/android/launcher3/allapps/AllAppsTransitionController.java
-@@ -65,6 +65,13 @@ import com.android.launcher3.views.ScrimView;
+@@ -66,6 +66,13 @@ import com.android.launcher3.views.ScrimView;
  
  import com.google.android.msdl.data.model.MSDLToken;
  
@@ -177,7 +140,7 @@ index 8554de566d..78b11fe9b6 100644
  /**
   * Handles AllApps view transition.
   * 1) Slides all apps view using direct manipulation
-@@ -217,6 +224,26 @@ public class AllAppsTransitionController
+@@ -218,6 +225,26 @@ public class AllAppsTransitionController
          }
  
          mShouldShowAllAppsOnSheet = dp.shouldShowAllAppsOnSheet();
@@ -204,11 +167,50 @@ index 8554de566d..78b11fe9b6 100644
      }
  
      /**
+diff --git a/src/com/android/launcher3/model/ModelInitializer.kt b/src/com/android/launcher3/model/ModelInitializer.kt
+index 735a52aac6..51bb8fa603 100644
+--- a/src/com/android/launcher3/model/ModelInitializer.kt
++++ b/src/com/android/launcher3/model/ModelInitializer.kt
+@@ -22,6 +22,8 @@ import android.content.Context
+ import android.content.SharedPreferences
+ import android.content.pm.LauncherApps
+ import android.content.pm.LauncherApps.ArchiveCompatibilityParams
++import android.os.Process
++import android.util.Log
+ import com.android.launcher3.BuildConfig
+ import com.android.launcher3.Flags
+ import com.android.launcher3.InvariantDeviceProfile
+@@ -105,6 +107,17 @@ constructor(
+         dpUpdateReceiver.register(ACTION_DEVICE_POLICY_RESOURCE_UPDATED)
+         lifeCycle.addCloseable { dpUpdateReceiver.unregisterReceiverSafely() }
+ 
++        // DUO-DE: restart the launcher when the posture processor asks for it
++        val restartReceiver =
++            SimpleBroadcastReceiver(context, UI_HELPER_EXECUTOR) { intent ->
++                if (ACTION_DUO_LAUNCHER_RESTART == intent.action) {
++                    Log.d(TAG_DUO_RESTART, "Received broadcast to restart the launcher.")
++                    MODEL_EXECUTOR.execute { Process.killProcess(Process.myPid()) }
++                }
++            }
++        restartReceiver.register(Context.RECEIVER_EXPORTED, ACTION_DUO_LAUNCHER_RESTART)
++        lifeCycle.addCloseable { restartReceiver.unregisterReceiverSafely() }
++
+         // Development helper
+         if (BuildConfig.IS_STUDIO_BUILD) {
+             val reloadReceiver =
+@@ -163,5 +176,7 @@ constructor(
+ 
+     companion object {
+         private const val ACTION_FORCE_RELOAD = "force-reload-launcher"
++        private const val ACTION_DUO_LAUNCHER_RESTART = "com.thain.duo.LAUNCHER_RESTART"
++        private const val TAG_DUO_RESTART = "RestartReceiver by Archfx"
+     }
+ }
 diff --git a/src/com/android/launcher3/touch/WorkspaceTouchListener.java b/src/com/android/launcher3/touch/WorkspaceTouchListener.java
-index 0ff10c26a5..4c13d71503 100644
+index 576f17616b..6d0343d6f6 100644
 --- a/src/com/android/launcher3/touch/WorkspaceTouchListener.java
 +++ b/src/com/android/launcher3/touch/WorkspaceTouchListener.java
-@@ -47,6 +47,17 @@ import com.android.launcher3.logger.LauncherAtom;
+@@ -48,6 +48,17 @@ import com.android.launcher3.logger.LauncherAtom;
  import com.android.launcher3.testing.TestLogging;
  import com.android.launcher3.testing.shared.TestProtocol;
  import com.android.launcher3.util.TouchUtil;
@@ -226,7 +228,7 @@ index 0ff10c26a5..4c13d71503 100644
  
  /**
   * Helper class to handle touch on empty space in workspace and show options popup on long press
-@@ -92,6 +103,9 @@ public class WorkspaceTouchListener extends GestureDetector.SimpleOnGestureListe
+@@ -93,6 +104,9 @@ public class WorkspaceTouchListener extends GestureDetector.SimpleOnGestureListe
          if (action == ACTION_DOWN) {
              // Check if we can handle long press.
              boolean handleLongPress = canHandleLongPress();
@@ -236,7 +238,7 @@ index 0ff10c26a5..4c13d71503 100644
  
              if (handleLongPress) {
                  // Check if the event is not near the edges
-@@ -187,6 +201,48 @@ public class WorkspaceTouchListener extends GestureDetector.SimpleOnGestureListe
+@@ -188,6 +202,48 @@ public class WorkspaceTouchListener extends GestureDetector.SimpleOnGestureListe
                  && mLauncher.isInState(NORMAL);
      }
  
@@ -286,7 +288,7 @@ index 0ff10c26a5..4c13d71503 100644
          mLongPressState = STATE_CANCELLED;
      }
 diff --git a/src/com/android/launcher3/util/ActivityOptionsWrapper.java b/src/com/android/launcher3/util/ActivityOptionsWrapper.java
-index 17ff2a96b7..0f8c2f648e 100644
+index 17ff2a96b7..378de415f3 100644
 --- a/src/com/android/launcher3/util/ActivityOptionsWrapper.java
 +++ b/src/com/android/launcher3/util/ActivityOptionsWrapper.java
 @@ -15,10 +15,25 @@
@@ -379,10 +381,10 @@ index 17ff2a96b7..0f8c2f648e 100644
 +    }
  }
 diff --git a/src/com/android/launcher3/views/ActivityContext.java b/src/com/android/launcher3/views/ActivityContext.java
-index b8481c5fb8..fa6ae78d18 100644
+index cbf534187d..2fc4321130 100644
 --- a/src/com/android/launcher3/views/ActivityContext.java
 +++ b/src/com/android/launcher3/views/ActivityContext.java
-@@ -388,6 +388,8 @@ public interface ActivityContext {
+@@ -390,6 +390,8 @@ public interface ActivityContext extends SavedStateRegistryOwner {
      default RunnableList sendPendingIntentWithAnimation(
              @NonNull View v, PendingIntent intent, @Nullable ItemInfo item) {
          ActivityOptionsWrapper options = getActivityLaunchOptions(v, item);
@@ -391,7 +393,7 @@ index b8481c5fb8..fa6ae78d18 100644
          try {
              intent.send(null, 0, null, null, null, null, options.toBundle());
              if (item != null) {
-@@ -432,6 +434,7 @@ public interface ActivityContext {
+@@ -435,6 +437,7 @@ public interface ActivityContext extends SavedStateRegistryOwner {
                  : makeDefaultActivityOptions(item != null && item.animationType == DEFAULT_NO_ICON
                          ? SPLASH_SCREEN_STYLE_SOLID_COLOR : -1 /* SPLASH_SCREEN_STYLE_UNDEFINED */);
          UserHandle user = item == null ? null : item.user;
@@ -400,5 +402,5 @@ index b8481c5fb8..fa6ae78d18 100644
          // Prepare intent
          intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 -- 
-2.34.1
+2.43.0
 

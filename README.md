@@ -1,4 +1,4 @@
-# Surface-duo Dual Experience [duo-de][A15]
+# Surface-duo Dual Experience [duo-de][A16]
 
 
 <img align="left" width="120" height="auto" alt="" src="images/delogo.svg"/>
@@ -8,8 +8,11 @@ DUO-DE is a GSI variant Android ROM created for Microsoft Surface Duo devices, o
 Before you proceed, please take a moment to read [this announcement](https://github.com/Archfx/duo-de/discussions/52) regarding this project. By using this ROM, you are agreeing to the [`DISCLAIMER`](#disclaimer).
 
 
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/archfx/duo-de/total?style=for-the-badge&label=duo-de%20Downloads&color=%2333cc33)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/archfx/duo-de/sync.yml?style=for-the-badge&label=TrebleDroid%20Sync)
+> [!NOTE]
+> This is a continuation of [Archfx/duo-de](https://github.com/Archfx/duo-de), whose development has stopped. It is being moved to Android 16. The Android 16 build has not been tested on a device yet. See [BUILDING.md](BUILDING.md) for how to build it and how to move it to later Android versions.
+
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/mkostersitz/duo-de/total?style=for-the-badge&label=duo-de%20Downloads&color=%2333cc33)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/mkostersitz/duo-de/sync.yml?style=for-the-badge&label=TrebleDroid%20Sync)
 
 <p align="center">
 <img src="images/duo-de-main.gif" alt="drawing" style="width:640px;"/> </p>
@@ -81,14 +84,14 @@ Following are the steps to flash this image to your surface duo.
 
 1. Download the release. 
 ```shell
-wget https://github.com/Archfx/duo-de/releases/download/[[version]]/aosp-arm64-ab-gapps-15.0-[[version]].img.xz
+wget https://github.com/mkostersitz/duo-de/releases/download/[[version]]/aosp-arm64-ab-gapps-16.0-[[version]].img.xz
 ```
 2. Extract the compressed `*.xz` file to obtain the `*.img`. (Windows users can use something like 7-zip, Linux and Mac users can use either of the following commands with respective commandline utilities).
 ```shell
-tar -xf aosp-arm64-ab-gapps-15.0-[[version]].img.xz #tar utility
+tar -xf aosp-arm64-ab-gapps-16.0-[[version]].img.xz #tar utility
 ```
 ```shell
-gunzip aosp-arm64-ab-gapps-15.0-[[version]].img.xz #gunzip utility
+gunzip aosp-arm64-ab-gapps-16.0-[[version]].img.xz #gunzip utility
 ```
 3. If you are migrating from Android 12L (stock) follow this step. You need to unlock the bootloader before proceeding. Please pay attention to commands, do not copy and execute the commands blindly.
 ```shell
@@ -103,14 +106,14 @@ fastboot delete-logical-partition system_b
 # if current slot is b, delete the system_a
 fastboot delete-logical-partition system_a
 
-fastboot flash system aosp-arm64-ab-gapps-15.0-[[version]].img
+fastboot flash system aosp-arm64-ab-gapps-16.0-[[version]].img
 fastboot reboot 
 # upon reboot, it will prompt to wipe the user data partition.
 ```
 4. Migrating from 13/14 pixel experience, follow the below steps 
 ```shell
 adb reboot fastboot
-fastboot flash system aosp-arm64-ab-gapps-15.0-[[version]].img
+fastboot flash system aosp-arm64-ab-gapps-16.0-[[version]].img
 fastboot reboot 
 ```
 5. When the device is booted, perform a manual reboot to apply the first-time configurations correctly.
@@ -124,9 +127,13 @@ fastboot reboot
 9. If you wish to see future updates and feature improvements, consider _starring_ (★) the project—it motivates the development of new releases!
 
 
+## Building
+
+See [BUILDING.md](BUILDING.md).
+
 ## Issues
 Any issues, please 
-[open an issue](https://github.com/Archfx/duo-de/issues/new/choose) with a detailed description. Please use the [discussion](https://github.com/Archfx/duo-de/discussions/new/choose) section for any questions regarding flashing and similar stuff.
+[open an issue](https://github.com/mkostersitz/duo-de/issues/new/choose) with a detailed description. Please use the [discussion](https://github.com/mkostersitz/duo-de/discussions/new/choose) section for any questions regarding flashing and similar stuff.
 
 ## Credits
 These people have helped this project in some way or another, so they should be the ones who receive all the credit:

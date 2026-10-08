@@ -1,0 +1,29 @@
+From 982a0a9e3ac708402b3f2376e94e14979413a25c Mon Sep 17 00:00:00 2001
+From: Mike Kostersitz <mkostersitz@mac.com>
+Date: Mon, 5 Oct 2026 19:21:40 -0700
+Subject: [PATCH] Drop OmniJaws from the product
+
+OmniJaws depends on modules that are only in ponces' private vendor repo
+(ax_compose, crdroid apps resources) and cannot be built from public
+sources. ParanoidSense stays: its PixelOS fork ships the face libraries.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ config/packages.mk | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/config/packages.mk b/config/packages.mk
+index 88154e8..d00a3ae 100644
+--- a/config/packages.mk
++++ b/config/packages.mk
+@@ -8,7 +8,3 @@ PRODUCT_PACKAGES += \
+ # SystemUI plugins
+ PRODUCT_PACKAGES += \
+     QuickAccessWallet
+-
+-# Weather
+-PRODUCT_PACKAGES += \
+-    OmniJaws
+-- 
+2.48.1
+

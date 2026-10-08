@@ -2,7 +2,7 @@
 
 echo
 echo "--------------------------------------"
-echo "         AOSP 15.0 Uploadbot          "
+echo "        DUO-DE AOSP Uploadbot         "
 echo "                  by                  "
 echo "                ArchFX                "
 echo "--------------------------------------"
@@ -10,13 +10,12 @@ echo
 
 set -e
 
-BL=$PWD/treble_aosp
-BD=$PWD/duo-de/builds
+[ -z "$GH_REPO" ] && GH_REPO="mkostersitz/duo-de"
+[ -z "$OTA_BRANCH" ] && OTA_BRANCH="main-16"
+[ -z "$ANDROID_VERSION" ] && ANDROID_VERSION="16.0"
+[ -z "$BUILD_ROOT" ] && BUILD_ROOT="$PWD/treble_aosp"
+[ -z "$OUTPUT_DIR" ] && OUTPUT_DIR="$PWD/duo-de/builds"
 TAG="$(date +v%Y.%m.%d)"
-GUSER="archfx"
-# GREPO="duoPosture"
-# GREPO="duoTreble"
-GREPO="duo-de"
 
 SKIPOTA=false
 if [ "$1" == "--skip-ota" ]; then
@@ -25,34 +24,34 @@ fi
 
 createRelease() {
     echo "--> Creating release $TAG"
-    res=$(gh release create "$TAG" --repo "$GUSER/$GREPO" --title "$TAG"  )
+    gh release create "$TAG" --repo "$GH_REPO" --title "$TAG" --draft --notes "Android $ANDROID_VERSION build $TAG"
     echo
 }
 
 uploadAssets() {
     buildDate="$(date +%Y%m%d)"
-    find $BD/ -name "aosp-*-15.0-$buildDate.img.xz" | while read file; do
+    find $OUTPUT_DIR/ -name "aosp-*-${ANDROID_VERSION}-$buildDate.img.xz" | while read file; do
         echo "--> Uploading $(basename $file)"
-        gh release upload "$TAG" "$file" --repo "$GUSER/$GREPO"
+        gh release upload "$TAG" "$file" --repo "$GH_REPO"
         echo
     done
 }
 
 updateOta() {
-    cd treble_aosp
+    cd $BUILD_ROOT
     echo "--> Updating OTA file"
     git add config/ota.json
     git commit -m "build: Bump OTA to $TAG"
-    git push --set-upstream origin main-15
+    git push origin HEAD:$OTA_BRANCH
     echo
-    cd ..
+    cd - >/dev/null
 }
 
 START=$(date +%s)
 
 createRelease
 uploadAssets
-# [ "$SKIPOTA" = false ] && updateOta
+[ "$SKIPOTA" = false ] && updateOta
 
 END=$(date +%s)
 ELAPSEDM=$(($(($END-$START))/60))

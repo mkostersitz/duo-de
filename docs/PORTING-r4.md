@@ -81,3 +81,11 @@ Found by the second r4 build attempt.
 | trebledroid `build` "Include vndk v28 sepolicy support" | Adds `28.0` to `PLATFORM_SEPOLICY_COMPAT_VERSIONS` in `core/config.mk`, so Soong expects the 28.0 compat modules (`28.0_compat_test` needs `plat_28.0.cil`, ...). Those come from the sepolicy 28.0 revert that was already dropped (no Duo vendor is older than sepolicy 29.0). The two patches must be kept or dropped together. |
 
 Found by the third r4 build attempt (6 Soong errors, all from `28.0_compat_test`).
+
+## Samsung radio libraries in framework-internal-utils (dropped)
+| Patch | Why dropped |
+|---|---|
+| trebledroid `frameworks/base` 0046 (`vendor.samsung.hardware.radio.network-V1-java`) and 0047 (`vendor.samsung.hardware.radio-V2.2-java`) | They add vendor Samsung HAL libraries to `framework-internal-utils`. r4 refuses to put non-generic modules in the generic system image (Soong: `module "aosp_shared_system_image" ... includes non-generic modules: "vendor.samsung.hardware.radio-V2.2-java" from "framework-internal-utils"`). Archfx a16-dev had already removed the matching `frameworks/opt/telephony` Samsung patches (0008, 0009). |
+
+The remaining Samsung patches (camera ids, light HAL, power HAL) apply and were not flagged. Revisit if a later check objects.
+Found by the fourth r4 build attempt.

@@ -100,3 +100,8 @@ Found by the fifth r4 build attempt (first compile error, after Soong analysis p
 | duo `Launcher3` 0001, `ActivityOptionsWrapper.java` | The Duo patch reads `DeviceProfile.isTablet` and `DeviceProfile.widthPx`. r4 moved these into `DeviceProperties`, so javac failed (`cannot find symbol`). Now `getDeviceProfile().getDeviceProperties().isTablet()` and `.getWidthPx()`. Only the `DeviceProfile.java` hunk had conflicted textually, so this was missed in the first port. |
 
 Found by the sixth r4 build attempt (javac error in `Launcher3QuickStepLib`).
+
+## Cosmetic
+| Change | Why |
+|---|---|
+| duo `Settings` 0001 "gsi info added": `System Image` row now reads `ARCHFX/DUO-DE A16 (archfx.me/duo-de)` | The string was written during the A15 work (`A15b`) and carried into the A16 branch unchanged, so the About screen showed the wrong Android version. Takes effect on the next full patch run (resource only). |

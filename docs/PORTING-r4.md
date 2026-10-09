@@ -41,3 +41,21 @@ may re-add them, and they will conflict again.
 | microG | frameworks/base 0048, 0053 | Signature spoofing for microG. Not used by duo-de. |
 | BPF-less / old kernel | packages/modules/Connectivity 0002, 0003, 0005, 0006; system/bpf 0001, 0002 | Both Duo kernels have BPF on: `CONFIG_BPF_SYSCALL`, `CGROUP_BPF`, `BPF_JIT`, `NETFILTER_XT_MATCH_BPF` = y in Microsoft's Duo 2 (5.4, `gki_defconfig`) and Duo 1 (4.14, `surfaceduo-perf_defconfig`) kernel sources. |
 | Old sepolicy | system/sepolicy 0001 (restore 28.0 compat) | Duo vendors declare sepolicy 29.0 or 30.0, and r4 still ships both. |
+
+## Deferred patches (15) and the product drop
+To get an end-to-end r4 build and boot test quickly, the 15 patches that still conflict on r4 are moved to `patches/_deferred/`
+(`patch.sh` does not read that folder). They still need porting.
+
+| Patch | Why it matters |
+|---|---|
+| trebledroid frameworks/av 0001 APM: Restore S, R and Q behavior for telephony audio | **Call audio routing on an R/S vendor.** Large conflict (two blocks of `AudioPolicyManager.cpp`, which r4 rewrote). Needs careful porting and a call test. |
+| trebledroid frameworks/opt/telephony 0004 (TelephonyMetrics.writeRilSendSms), 0007 (UiccSlot logging) | Old-RIL compatibility. 0007 is close to the dual SIM / eSIM slot code. |
+| trebledroid frameworks/base 0003 (ANDROID_STORAGE empty string), 0011 (work profile count), 0026 (FDE methods in StorageManager), 0050 (sysui media animation prop) | Generic compatibility. |
+| trebledroid frameworks/native 0011 (Increase SW_MAX) | Input switch codes. |
+| trebledroid system/core 0004 (panic into recovery rather than bootloader), 0028 (libfiemap loop mapping) | 0004 changes where a fatal init error goes (recovery instead of bootloader). 0028 enables DSU on old kernels. |
+| personal frameworks/base 0002 (default permission updates tied to version incremental), 0003 (SystemUI Style.SPRITZ default), 0004 (SenseProvider for FaceSense), 0005 (OmniJaws keyguard slice provider) | 0004 and 0005 are the framework side of face unlock and weather. |
+| personal packages/apps/ThemePicker 0001 (Override WallpaperCropper) | Wallpaper cropping. |
+
+Because the SenseProvider and OmniJaws framework patches are deferred, `vendor/ponces` no longer ships **ParanoidSense** or **OmniJaws**
+in the product (new duo patch `vendor_ponces/0001`: removes the packages, `ro.face.sense_service` and the face feature file).
+Restore them when 0004 and 0005 are ported.

@@ -89,3 +89,10 @@ Found by the third r4 build attempt (6 Soong errors, all from `28.0_compat_test`
 
 The remaining Samsung patches (camera ids, light HAL, power HAL) apply and were not flagged. Revisit if a later check objects.
 Found by the fourth r4 build attempt.
+
+## Compile fixes
+| Change | Why |
+|---|---|
+| duo `frameworks/native` 0001: remove `failToLoadFromDriverSuffixProperty` from `opengl/libs/EGL/Loader.cpp` | TrebleDroid's "Fix loading unnamed GLES" (0010) simplifies the fallback condition, which removes the only read of the variable. clang in r4 then fails the build: `variable 'failToLoadFromDriverSuffixProperty' set but not used [-Werror,-Wunused-but-set-variable]`. |
+
+Found by the fifth r4 build attempt (first compile error, after Soong analysis passed).

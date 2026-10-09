@@ -59,3 +59,11 @@ To get an end-to-end r4 build and boot test quickly, the 15 patches that still c
 Because the SenseProvider and OmniJaws framework patches are deferred, `vendor/ponces` no longer ships **ParanoidSense** or **OmniJaws**
 in the product (new duo patch `vendor_ponces/0001`: removes the packages, `ro.face.sense_service` and the face feature file).
 Restore them when 0004 and 0005 are ported.
+
+## HIDL clean-up fallout
+| Change | Why |
+|---|---|
+| duo `device_phh_treble` 0006: drop the `vibrator-lge` helper binary | It links `vendor.lge.hardware.vibrator@1.0`, which needs the HIDL interface `android.hardware.vibrator@1.0`. r4 removed that interface, and Soong fails analysis ("depends on undefined module"). No product installs the binary. |
+| duo `vendor_interfaces` 0001: remove `vendor/lge/hardware/vibrator` | Same missing dependency. A Surface Duo has no LG vibrator HAL. |
+
+Found by the first r4 build attempt (5 Soong errors, all from this one directory).

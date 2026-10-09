@@ -114,3 +114,7 @@ With only the Settings half applied, `Settings-core` fails to compile (`package 
 is now in `patches/_deferred/` too. Restore both when the framework patch is ported.
 
 Found by the seventh r4 build attempt (2 javac failures).
+
+| duo `vendor_magisk` 0001: replace `__BIONIC_ALIGN` in `Magisk/native/jni/systemproperties/prop_area.cpp` with the equivalent round-up expression | bionic in r4 no longer defines `__BIONIC_ALIGN`, so `resetprop_phh` fails to compile (`use of undeclared identifier '__BIONIC_ALIGN'`). `resetprop_phh` is used by `phh-prop-handler.sh` to override a few audio and Bluetooth properties. |
+
+Found by the eighth r4 build attempt (late in the compile, at 84%).

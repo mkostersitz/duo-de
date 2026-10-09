@@ -226,8 +226,8 @@ index 17ff2a96b7..ec380af9c5 100644
      public Bundle toBundle() {
 +        String mode = "freeform";
 +        int windowMode;
-+        Boolean isTabletMode = ActivityContext.lookupContext(this.context).getDeviceProfile().isTablet;
-+        int widthPx = ActivityContext.lookupContext(this.context).getDeviceProfile().widthPx;
++        Boolean isTabletMode = ActivityContext.lookupContext(this.context).getDeviceProfile().getDeviceProperties().isTablet();
++        int widthPx = ActivityContext.lookupContext(this.context).getDeviceProfile().getDeviceProperties().getWidthPx();
 +        Boolean initialX = ActivityContext.lookupContext(this.context).getDeviceProfile().initialX;
 +
 +        int xValue = (initialX == true && isTabletMode && widthPx>2500) ? 1394 : 50;

@@ -96,3 +96,7 @@ Found by the fourth r4 build attempt.
 | duo `frameworks/native` 0001: remove `failToLoadFromDriverSuffixProperty` from `opengl/libs/EGL/Loader.cpp` | TrebleDroid's "Fix loading unnamed GLES" (0010) simplifies the fallback condition, which removes the only read of the variable. clang in r4 then fails the build: `variable 'failToLoadFromDriverSuffixProperty' set but not used [-Werror,-Wunused-but-set-variable]`. |
 
 Found by the fifth r4 build attempt (first compile error, after Soong analysis passed).
+
+| duo `Launcher3` 0001, `ActivityOptionsWrapper.java` | The Duo patch reads `DeviceProfile.isTablet` and `DeviceProfile.widthPx`. r4 moved these into `DeviceProperties`, so javac failed (`cannot find symbol`). Now `getDeviceProfile().getDeviceProperties().isTablet()` and `.getWidthPx()`. Only the `DeviceProfile.java` hunk had conflicted textually, so this was missed in the first port. |
+
+Found by the sixth r4 build attempt (javac error in `Launcher3QuickStepLib`).

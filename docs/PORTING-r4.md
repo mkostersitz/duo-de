@@ -105,3 +105,12 @@ Found by the sixth r4 build attempt (javac error in `Launcher3QuickStepLib`).
 | Change | Why |
 |---|---|
 | duo `Settings` 0001 "gsi info added": `System Image` row now reads `ARCHFX/DUO-DE A16 (archfx.me/duo-de)` | The string was written during the A15 work (`A15b`) and carried into the A16 branch unchanged, so the About screen showed the wrong Android version. Takes effect on the next full patch run (resource only). |
+
+## Weather: the Settings half is deferred with the framework half
+`personal/platform_packages_apps_Settings` 0002 ("LockScreen: Add pixel style lockscreen weather based on OmniJaws") imports
+`com.android.internal.util.crdroid`, which is added by the deferred `personal/platform_frameworks_base` 0005 (OmniJaws keyguard slice provider).
+With only the Settings half applied, `Settings-core` fails to compile (`package com.android.internal.util.crdroid does not exist` in
+`LockScreenWeatherPreferenceController.java` and `LockscreenDashboardFragment.java`). Both halves must be applied together, so the Settings patch
+is now in `patches/_deferred/` too. Restore both when the framework patch is ported.
+
+Found by the seventh r4 build attempt (2 javac failures).

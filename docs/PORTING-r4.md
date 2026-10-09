@@ -67,3 +67,10 @@ Restore them when 0004 and 0005 are ported.
 | duo `vendor_interfaces` 0001: remove `vendor/lge/hardware/vibrator` | Same missing dependency. A Surface Duo has no LG vibrator HAL. |
 
 Found by the first r4 build attempt (5 Soong errors, all from this one directory).
+
+## Session keyring workaround reverts (dropped)
+| Patch | Why dropped |
+|---|---|
+| trebledroid `system/vold` 0006 and `system/core` 0027: "Revert ... remove session keyring workaround for old kernels" | Both bring back a dependency on `libkeyutils`, which r4 removed together with the workaround (Soong: `"libvold" depends on undefined module "libkeyutils"`). The workaround targets kernels older than the Duo kernels (4.14 and 5.4). |
+
+Found by the second r4 build attempt.

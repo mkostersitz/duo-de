@@ -74,3 +74,10 @@ Found by the first r4 build attempt (5 Soong errors, all from this one directory
 | trebledroid `system/vold` 0006 and `system/core` 0027: "Revert ... remove session keyring workaround for old kernels" | Both bring back a dependency on `libkeyutils`, which r4 removed together with the workaround (Soong: `"libvold" depends on undefined module "libkeyutils"`). The workaround targets kernels older than the Duo kernels (4.14 and 5.4). |
 
 Found by the second r4 build attempt.
+
+## sepolicy 28.0 (dropped as a pair)
+| Patch | Why dropped |
+|---|---|
+| trebledroid `build` "Include vndk v28 sepolicy support" | Adds `28.0` to `PLATFORM_SEPOLICY_COMPAT_VERSIONS` in `core/config.mk`, so Soong expects the 28.0 compat modules (`28.0_compat_test` needs `plat_28.0.cil`, ...). Those come from the sepolicy 28.0 revert that was already dropped (no Duo vendor is older than sepolicy 29.0). The two patches must be kept or dropped together. |
+
+Found by the third r4 build attempt (6 Soong errors, all from `28.0_compat_test`).

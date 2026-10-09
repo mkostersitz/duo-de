@@ -30,3 +30,14 @@ Without the apex the vendor libraries have no VNDK namespace to link against.
 | trebledroid `platform_packages_modules_vndk` 0001 (v29) and 0002 (v28) | **Removed from the tree.** They no longer apply on r4 (they expected the v30 block to exist, and r4 deleted it). v29 is covered by the new duo patch. v28 is not needed: no Duo vendor is older than VNDK 29. A future TrebleDroid sync may re-add these two files, and they will conflict again. |
 
 Not yet build-tested on r4.
+
+## TrebleDroid patches dropped for the Duo (20)
+These conflict on r4 and are not needed on a Surface Duo. They are removed from `patches/trebledroid`; a future TrebleDroid sync
+may re-add them, and they will conflict again.
+
+| Group | Patches | Why they are not needed |
+|---|---|---|
+| Other-OEM hardware | frameworks/base 0029 (Samsung SehSysInputDev), 0031 (MediaTek touch hints), 0032 (Moto dynamic hardware), 0037 and 0044 (FOD / in-display fingerprint), 0042 and 0043 (Samsung brightness / sysinput), 0049 (try/catch around the dynamic UDFPS position added by the FOD patches); frameworks/native 0008 (FOD), 0009 (MTK GED KPI); packages/modules/Bluetooth 0005 (Samsung audio HAL) | The Duo has none of this hardware. The Duo 2 reader is a side-mounted power-button sensor, not UDFPS. |
+| microG | frameworks/base 0048, 0053 | Signature spoofing for microG. Not used by duo-de. |
+| BPF-less / old kernel | packages/modules/Connectivity 0002, 0003, 0005, 0006; system/bpf 0001, 0002 | Both Duo kernels have BPF on: `CONFIG_BPF_SYSCALL`, `CGROUP_BPF`, `BPF_JIT`, `NETFILTER_XT_MATCH_BPF` = y in Microsoft's Duo 2 (5.4, `gki_defconfig`) and Duo 1 (4.14, `surfaceduo-perf_defconfig`) kernel sources. |
+| Old sepolicy | system/sepolicy 0001 (restore 28.0 compat) | Duo vendors declare sepolicy 29.0 or 30.0, and r4 still ships both. |

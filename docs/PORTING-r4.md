@@ -118,3 +118,16 @@ Found by the seventh r4 build attempt (2 javac failures).
 | duo `vendor_magisk` 0001: replace `__BIONIC_ALIGN` in `Magisk/native/jni/systemproperties/prop_area.cpp` with the equivalent round-up expression | bionic in r4 no longer defines `__BIONIC_ALIGN`, so `resetprop_phh` fails to compile (`use of undeclared identifier '__BIONIC_ALIGN'`). `resetprop_phh` is used by `phh-prop-handler.sh` to override a few audio and Bluetooth properties. |
 
 Found by the eighth r4 build attempt (late in the compile, at 84%).
+
+## BPF loader: why r4 and stock A17 reboot at about 25 seconds (and why dropping the BPF patches was wrong)
+The first r4 image boot-looped at the Surface logo, like the stock A17 GSI. Both loaders have a fatal path:
+`NetBpfLoad.cpp` ("DO NOT EXPECT SYSTEM TO BOOT SUCCESSFULLY", `sleep(20)`, `return 38`) and `system/bpf` `Loader.cpp`
+(`sleep(20); exit(121)`), and `netbpfload.35rc` has `reboot_on_failure reboot,bpfloader-failed`. The 20 second sleep matches the observed timing.
+
+Earlier in this port the six "BPF-less / old kernel" TrebleDroid patches were dropped on the grounds that both Duo kernels have BPF enabled in
+their defconfigs. **That reasoning was wrong**: enabled does not mean every program Android loads will pass the verifier on a 5.4 kernel.
+Those patches turn exactly these fatal paths into non-fatal ones, which is why r2 booted.
+
+| Change | Purpose |
+|---|---|
+| duo `Connectivity` 0001: comment out `reboot_on_failure reboot,bpfloader-failed` in `netbpfload.35rc` | Debug step recommended by the AOSP rc comments: boot anyway, then read `adb logcat -s 'bpfloader:*' 'LibBpfLoader:*' 'NetBpfLoad:*' 'NetBpfLoader:*'` to find the BPF program that fails on the Duo kernel. A permanent fix should address that program (or tolerate it) rather than hide it. |

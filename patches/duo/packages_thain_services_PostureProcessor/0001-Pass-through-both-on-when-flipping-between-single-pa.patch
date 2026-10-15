@@ -1,0 +1,48 @@
+From 0e258daf9fc800a121b91f0ba790718d32fb0084 Mon Sep 17 00:00:00 2001
+From: Mike Kostersitz <mkostersitz@mac.com>
+Date: Thu, 15 Oct 2026 22:50:59 +0000
+Subject: [PATCH] Pass through both-on when flipping between single panels
+
+Switching straight from one panel to the other (composition 0 <-> 1) leaves the
+two digitizers out of sync on the Duo 2: raw touch events stop and do not come
+back until reboot. Set composition 2 first, wait 400 ms, then apply the target.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../kotlin/com/thain/duo/PostureProcessorService.kt  | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/src/main/kotlin/com/thain/duo/PostureProcessorService.kt b/src/main/kotlin/com/thain/duo/PostureProcessorService.kt
+index 6363e7e..0b80b89 100644
+--- a/src/main/kotlin/com/thain/duo/PostureProcessorService.kt
++++ b/src/main/kotlin/com/thain/duo/PostureProcessorService.kt
+@@ -302,7 +302,18 @@ public class PostureProcessorService : Service(), IHwBinder.DeathRecipient {
+         try {
+             connectHalIfNeeded()
+             Log.d(TAG, "Setting display composition ${composition} new!")
++            val from = currentDisplayComposition
+             handler.removeCallbacksAndMessages(null)
++            if ((from == 0 && composition == 1) || (from == 1 && composition == 0)) {
++                // Going straight from one panel to the other leaves the two digitizers out of
++                // sync and touch stops until reboot. Pass through both-on and let them settle.
++                Log.d(TAG, "Flip ${from} -> ${composition}: passing through composition 2 first")
++                displayHal?.setComposition(2)
++                touchHalCompSet(2)
++                currentDisplayComposition = 2
++                handler.postDelayed({ setDisplay(composition) }, FLIP_SETTLE_MS)
++                return
++            }
+             displayHal?.setComposition(composition)
+             touchHalCompSet(composition)
+             currentDisplayComposition = composition
+@@ -805,6 +816,7 @@ public class PostureProcessorService : Service(), IHwBinder.DeathRecipient {
+         const val DISPLAY_HAL_DEATH_COOKIE: Long = 1337
+         const val TOUCHPEN_HAL_DEATH_COOKIE: Long = 1338
+         const val TAG = "POSTURE PROCESSOR"
++        const val FLIP_SETTLE_MS: Long = 400
+         const val MSG_DISPLAY_LEFT: Int = 0
+         const val MSG_DISPLAY_RIGHT: Int = 1
+         const val MSG_DISPLAY_BOTH: Int = 2
+-- 
+2.43.0
+

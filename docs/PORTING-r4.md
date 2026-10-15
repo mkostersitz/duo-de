@@ -131,3 +131,26 @@ Those patches turn exactly these fatal paths into non-fatal ones, which is why r
 | Change | Purpose |
 |---|---|
 | duo `Connectivity` 0001: comment out `reboot_on_failure reboot,bpfloader-failed` in `netbpfload.35rc` | Debug step recommended by the AOSP rc comments: boot anyway, then read `adb logcat -s 'bpfloader:*' 'LibBpfLoader:*' 'NetBpfLoad:*' 'NetBpfLoader:*'` to find the BPF program that fails on the Duo kernel. A permanent fix should address that program (or tolerate it) rather than hide it. |
+
+## BPF: restoring the TrebleDroid BPF-tolerance set (root cause of the r4 boot hang)
+**Root cause.** android-16.0.0_r4 (25Q4) added a hard gate in the Mainline `NetBpfLoad`: `Android 25Q4 requires kernel 5.10` (`return 7`).
+The Surface Duo 2 kernel is 5.4.233, so `netbpfload` exits at once and never reaches the platform bpfloader hand-off, so the final `netbpfload done` step never sets
+`bpf.progs_loaded=1`. Services that wait for that property never start, and the device sits on the boot animation with no `system_server` and
+no USB. With `reboot_on_failure reboot,bpfloader-failed` it instead reboots after about 25 seconds. The stock Android 17 GSI fails the same way.
+Earlier in this port the six BPF-less TrebleDroid patches were dropped because the Duo kernel configs have BPF enabled. That was wrong: the gate is on kernel *version*.
+
+**What was done.** The TrebleDroid set is restored and ported (they turn the version gates and load failures into non-fatal `failed = true`).
+
+| Patch | Decision |
+|---|---|
+| `Connectivity` 0001, 0004, 0007, 0008, 0009 | Applied unchanged (they were never dropped). |
+| `Connectivity` 0002 "Support non-working BPF maps" | **Ported.** `NetBpfLoad.cpp`: every hard `return N` in `doLoad` becomes `failed = true` (15 hunks, including r4's new 25Q4 gate and the 6.13+ userspace gate), the 20 s sleep is removed, and a summary is logged. `NetworkStatsService.java`: BPF map fields become non-final and null-initialized, with r4's key types (`S64`, `S32`). The rest of the patch applied by 3-way merge and still needs a compile check. |
+| `Connectivity` 0003 "traffic indicators for legacy devices" | **Ported.** r4's stats struct is kept and the patch's `/proc/net/xt_qtaguid` constants are added; the three stats entry points fall back to parsing `/proc` when BPF stats fail. |
+| `Connectivity` 0005 "netd: remove <4.14 restrictions" | **Ported.** The 4.9 and 4.14 kernel checks in `BpfHandler.cpp` are removed (the Duo passes them either way). |
+| `Connectivity` 0006 "More bpf errors ignore" | **Dropped.** Its effect (non-fatal sysctl write failures) is already covered by 0002's `failed = true` conversion. |
+| `system/bpf` 0001 "Support no-bpf usecase" | **Ported.** r4's `vendorBpfLoader()` no longer aborts when `/vendor/etc/bpf` objects fail to load: it logs and carries on to the final "done" re-exec. |
+| `system/bpf` 0002 "Additional bpf-less handling" | **Dropped.** It edits `createBpfFsSubDirectories()`, which no longer exists in r4 (that logic moved into `NetBpfLoad.cpp`, covered by Connectivity 0002). |
+| `system/bpf` 0003 | Applied unchanged. |
+
+The duo `Connectivity` 0001 (no `reboot_on_failure` in `netbpfload.35rc`) stays for bring-up. Revisit once the system boots with the tolerance patches.
+**Caveat for Archfx/TrebleDroid:** on a 5.4 kernel this means r4 runs with little or no BPF. Data-usage accounting, per-UID firewall rules and tethering offload may be degraded.

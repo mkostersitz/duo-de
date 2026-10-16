@@ -1,0 +1,28 @@
+From 2e136fc27bcc8d05a5e315d4bb11bbf8b6e0b405 Mon Sep 17 00:00:00 2001
+From: Mike Kostersitz <mkostersitz@mac.com>
+Date: Fri, 16 Oct 2026 17:58:05 +0000
+Subject: [PATCH] Default the flip settle time to 1 s
+
+0.5 s was reliable on a Duo 2, 0.4 s was not; 1 s keeps a 2x margin for other units.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ src/main/kotlin/com/thain/duo/PostureProcessorService.kt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/main/kotlin/com/thain/duo/PostureProcessorService.kt b/src/main/kotlin/com/thain/duo/PostureProcessorService.kt
+index 732c9b4..fd6905b 100644
+--- a/src/main/kotlin/com/thain/duo/PostureProcessorService.kt
++++ b/src/main/kotlin/com/thain/duo/PostureProcessorService.kt
+@@ -824,7 +824,7 @@ public class PostureProcessorService : Service(), IHwBinder.DeathRecipient {
+         const val DISPLAY_HAL_DEATH_COOKIE: Long = 1337
+         const val TOUCHPEN_HAL_DEATH_COOKIE: Long = 1338
+         const val TAG = "POSTURE PROCESSOR"
+-        const val FLIP_SETTLE_MS: Long = 2000
++        const val FLIP_SETTLE_MS: Long = 1000
+         const val MSG_DISPLAY_LEFT: Int = 0
+         const val MSG_DISPLAY_RIGHT: Int = 1
+         const val MSG_DISPLAY_BOTH: Int = 2
+-- 
+2.43.0
+

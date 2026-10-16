@@ -52,7 +52,7 @@ To get an end-to-end r4 build and boot test quickly, the 15 patches that still c
 | trebledroid frameworks/opt/telephony 0004 (TelephonyMetrics.writeRilSendSms), 0007 (UiccSlot logging) | Old-RIL compatibility. 0007 is close to the dual SIM / eSIM slot code. |
 | trebledroid frameworks/base 0003 (ANDROID_STORAGE empty string), 0011 (work profile count), 0026 (FDE methods in StorageManager), 0050 (sysui media animation prop) | Generic compatibility. |
 | trebledroid frameworks/native 0011 (Increase SW_MAX) | Input switch codes. |
-| trebledroid system/core 0004 (panic into recovery rather than bootloader), 0028 (libfiemap loop mapping) | 0004 changes where a fatal init error goes (recovery instead of bootloader). 0028 enables DSU on old kernels. |
+| trebledroid system/core 0004 (panic into recovery rather than bootloader), ~~0028 (libfiemap loop mapping)~~ | 0004 changes where a fatal init error goes (recovery instead of bootloader). 0028 enables DSU on old kernels. 0028 is ported (2026-10-16): r4 now validates device-mapper and always uses dm-linear, the port restores the loop-device fallback when /data is not on device-mapper; compiles (libfs_mgr, gsid, phh-ota), needs an OTA test. The Duo 2 /data is on dm-50, so it does not need it. |
 | personal frameworks/base 0002 (default permission updates tied to version incremental), 0003 (SystemUI Style.SPRITZ default), 0004 (SenseProvider for FaceSense), 0005 (OmniJaws keyguard slice provider) | 0004 and 0005 are the framework side of face unlock and weather. |
 | personal packages/apps/ThemePicker 0001 (Override WallpaperCropper) | Wallpaper cropping. |
 

@@ -1,0 +1,32 @@
+From 2acb3504c41d49667e218861000cd2ec50704a22 Mon Sep 17 00:00:00 2001
+From: Mike Kostersitz <mkostersitz@mac.com>
+Date: Thu, 15 Oct 2026 23:21:49 +0000
+Subject: [PATCH] Add the stubbed com.surface.touchpenservice package for the
+ Duo 2 touch HAL
+
+The Duo 2 touch HAL expects the stock Microsoft touch/pen service to register a
+pen callback. Install the stub from vendor/surface (Archfx/duoVendor) so it does.
+Same change as Archfx's device_phh_treble/0006-add-touch-service-for-duo2.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ base.mk | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/base.mk b/base.mk
+index 77f5df4..d879228 100644
+--- a/base.mk
++++ b/base.mk
+@@ -282,7 +282,8 @@ PRODUCT_PACKAGES += \
+ 	SurfaceDuoSettingsOverlay \
+ 	SurfaceDuoSettingsIconsOverlay \
+ 	SurfaceDuoAppHintingOverlay \
+-	libms_pen_charger
++	libms_pen_charger \
++	com.surface.touchpenservice
+ 
+ # Privapp-permissions whitelist for postureProcessor
+ PRODUCT_COPY_FILES += \
+-- 
+2.43.0
+

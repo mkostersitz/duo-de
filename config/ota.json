@@ -1,13 +1,16 @@
 {
-  "version": "v2026.10.16",
-  "date": "1792177033",
+  "version": "v2025.06.26",
+  "date": "1750968168",
   "variants": [
     {
       "name": "treble_arm64_bgN",
-      "size": "1539225132",
-      "xz_sha256": "044475b61a872ad13ecbddd5f82e2e33509303df36ed16fb1c932fbd024aec74",
-      "sha256": "c5e334b8249822c370384df0e4b0733ae6a62c017e144e2e42487771283f02d0",
-      "url": "https://github.com/mkostersitz/duo-de/releases/download/ota-test-20261016-1924/aosp-arm64-ab-gapps-16.0-20261016.img.xz"
+      "size": "1532227076",
+      "url": "https://github.com/archfx/duo-de/releases/download/v2025.06.26/aosp-arm64-ab-gapps-16.0-20250626.img.xz"
+    },
+    {
+      "name": "treble_arm64_bvN",
+      "size": "884248720",
+      "url": "https://github.com/archfx/duo-de/releases/download/v2025.06.26/aosp-arm64-ab-vanilla-16.0-20250626.img.xz"
     }
   ]
 }

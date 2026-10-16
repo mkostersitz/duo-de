@@ -48,7 +48,7 @@ To get an end-to-end r4 build and boot test quickly, the 15 patches that still c
 
 | Patch | Why it matters |
 |---|---|
-| trebledroid frameworks/av 0001 APM: Restore S, R and Q behavior for telephony audio | **Call audio routing on an R/S vendor.** Large conflict (two blocks of `AudioPolicyManager.cpp`, which r4 rewrote). Needs careful porting and a call test. |
+| ~~trebledroid frameworks/av 0001 APM: Restore S, R and Q behavior for telephony audio~~ | **Ported (2026-10-16), compiles, call test pending.** Two conflicts in `AudioPolicyManager.cpp`: r4 removed the `fix_call_audio_patch()` flag (kept the plain `else`), and uses `std::set` instead of `SortedVector`. Added: the HW bridging patches are also released when a call ends (r4 only disconnects the source clients). |
 | trebledroid frameworks/opt/telephony 0004 (TelephonyMetrics.writeRilSendSms), 0007 (UiccSlot logging) | Old-RIL compatibility. 0007 is close to the dual SIM / eSIM slot code. |
 | trebledroid frameworks/base 0003 (ANDROID_STORAGE empty string), 0011 (work profile count), 0026 (FDE methods in StorageManager), 0050 (sysui media animation prop) | Generic compatibility. |
 | trebledroid frameworks/native 0011 (Increase SW_MAX) | Input switch codes. |

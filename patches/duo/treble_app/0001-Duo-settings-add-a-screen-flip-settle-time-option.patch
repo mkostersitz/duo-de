@@ -1,10 +1,12 @@
-From 9bff6a703eb569b788270c8d90a6fea5e26faf58 Mon Sep 17 00:00:00 2001
+From 01189004a75b64178e8dd70e545a9c2d08d1c196 Mon Sep 17 00:00:00 2001
 From: Mike Kostersitz <mkostersitz@mac.com>
 Date: Fri, 16 Oct 2026 02:35:14 +0000
 Subject: [PATCH] Duo settings: add a screen flip settle time option
 
 Lists 0.25 s to 4 s under Posture and writes persist.sys.phh.duo.flip_settle_ms,
 which the posture service reads on every flip between the two single screens.
+The entry values are a string-array: numbers in a plain <array> become an int
+array and ListPreference then sees null entry values.
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---
@@ -49,14 +51,14 @@ index 740dff3..b1d3819 100644
      val wirelessPenCharging = "wireless_pen_charging"
      val chargePenOnlyWhenDeviceIsCharging = "charge_pen_while_device_is_charging"
 diff --git a/app/src/main/res/values/pref_duo.xml b/app/src/main/res/values/pref_duo.xml
-index fd68ace..522f589 100644
+index fd68ace..a75cff4 100644
 --- a/app/src/main/res/values/pref_duo.xml
 +++ b/app/src/main/res/values/pref_duo.xml
 @@ -20,4 +20,24 @@
        <item>"top"</item>
        <item>"bottom"</item>
      </array>
-+    <array name="pref_flip_settle_entries">
++    <string-array name="pref_flip_settle_entries">
 +        <item>0.25 seconds</item>
 +        <item>0.5 seconds</item>
 +        <item>0.75 seconds</item>
@@ -65,8 +67,8 @@ index fd68ace..522f589 100644
 +        <item>2 seconds (default)</item>
 +        <item>3 seconds</item>
 +        <item>4 seconds</item>
-+    </array>
-+    <array name="pref_flip_settle_values">
++    </string-array>
++    <string-array name="pref_flip_settle_values">
 +        <item>250</item>
 +        <item>500</item>
 +        <item>750</item>
@@ -75,7 +77,7 @@ index fd68ace..522f589 100644
 +        <item>2000</item>
 +        <item>3000</item>
 +        <item>4000</item>
-+    </array>
++    </string-array>
  </resources>
 diff --git a/app/src/main/res/xml/pref_duo.xml b/app/src/main/res/xml/pref_duo.xml
 index 409b099..27fc771 100644

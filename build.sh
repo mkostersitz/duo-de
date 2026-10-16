@@ -155,8 +155,10 @@ generateOta() {
             [[ "$filename" == *"-vanilla"* ]] && variant="v" || variant="g"
             name="treble_arm64_b${variant}N"
             size=$(wc -c $file | awk '{print $1}')
+            xz_sha256=$(sha256sum $file | awk '{print $1}')
+            img_sha256=$(xz -dc $file | sha256sum | awk '{print $1}')
             url="https://github.com/$GH_REPO/releases/download/$version/$filename"
-            json="${json} {\"name\": \"$name\",\"size\": \"$size\",\"url\": \"$url\"},"
+            json="${json} {\"name\": \"$name\",\"size\": \"$size\",\"xz_sha256\": \"$xz_sha256\",\"sha256\": \"$img_sha256\",\"url\": \"$url\"},"
         done
         json="${json%?}]}"
         echo "$json" | jq . > $BUILD_ROOT/config/ota.json

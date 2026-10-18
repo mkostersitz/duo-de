@@ -4,10 +4,10 @@
   "variants": [
     {
       "name": "treble_arm64_bgN",
-      "size": "1539331556",
-      "xz_sha256": "0bf36d67a1a029193ff1c3fcb97d16bc51f379825f810d1ffec7b74be3f523d4",
-      "sha256": "8f61b9938e8cbd20394e9c35901fadce6dbedea4d724c573714b6a37f0d82557",
-      "url": "https://github.com/mkostersitz/duo-de/releases/download/ota-test-20261018-ims/aosp-arm64-ab-gapps-16.0-20261018.img.xz"
+      "size": "1539333316",
+      "xz_sha256": "a3cde547386068895173d2086cc0127c73453f4b34b76fd5d303c1253ac1340d",
+      "sha256": "edcc6fbed7392d361bc186922f5abf8cba9f900406e15daac678190fa3e90532",
+      "url": "https://github.com/mkostersitz/duo-de/releases/download/ota-test-20261018-ims2/aosp-arm64-ab-gapps-16.0-20261018.img.xz"
     }
   ]
 }

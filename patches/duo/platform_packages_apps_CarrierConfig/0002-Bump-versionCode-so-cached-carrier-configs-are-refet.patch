@@ -1,0 +1,27 @@
+From 6941cac7cef2e0ba83660e3071ae52927e2e3e95 Mon Sep 17 00:00:00 2001
+From: mkostersitz <spartan114@me.com>
+Date: Sun, 18 Oct 2026 17:28:17 +0000
+Subject: [PATCH 2/2] Bump versionCode so cached carrier configs are refetched
+ after an OTA
+
+Change-Id: Iaae08591c689d37f2296d2533ad3b27cffb23855
+---
+ AndroidManifest.xml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index cd03659..0365d45 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -15,7 +15,7 @@
+ -->
+ 
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+-     android:versionCode="1"
++     android:versionCode="2"
+      android:versionName="1.0.0"
+      package="com.android.carrierconfig">
+ 
+-- 
+2.43.0
+

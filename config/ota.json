@@ -1,16 +1,13 @@
 {
-  "version": "v2025.06.26",
-  "date": "1750968168",
+  "version": "v2026.10.18",
+  "date": "1792353089",
   "variants": [
     {
       "name": "treble_arm64_bgN",
-      "size": "1532227076",
-      "url": "https://github.com/archfx/duo-de/releases/download/v2025.06.26/aosp-arm64-ab-gapps-16.0-20250626.img.xz"
-    },
-    {
-      "name": "treble_arm64_bvN",
-      "size": "884248720",
-      "url": "https://github.com/archfx/duo-de/releases/download/v2025.06.26/aosp-arm64-ab-vanilla-16.0-20250626.img.xz"
+      "size": "1539353112",
+      "xz_sha256": "e40acdfc28e32c0ca941529b750cd3812778461b2f0b19d8499871be3809fdf6",
+      "sha256": "675945b6a7471c80b28bef76b541f0dcd04025a98549985837e9b390da0ce3d2",
+      "url": "https://github.com/mkostersitz/duo-de/releases/download/ota-test-20261018-iwlan/aosp-arm64-ab-gapps-16.0-20261018.img.xz"
     }
   ]
 }

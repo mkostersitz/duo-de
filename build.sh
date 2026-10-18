@@ -28,7 +28,7 @@ ulimit -n 65536 2>/dev/null || true
 # Branch of $GH_REPO whose config/ota.json devices poll for updates
 [ -z "$OTA_BRANCH" ] && OTA_BRANCH="main-16"
 
-export BUILD_NUMBER="$(date +%y%m%d)"
+export BUILD_NUMBER="${BUILD_NUMBER:-$(date +%y%m%d)}"  # override for a second build on the same day (same fingerprint = no package rescan after an OTA)
 
 # Parallel make jobs. On machines with more than 8 threads two are left free for the desktop,
 # on small ones (4-8 threads) every thread is used. Override with JOBS=n

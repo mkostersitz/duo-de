@@ -1,0 +1,116 @@
+From f0fe0dc62954800f69e2406defa74cf9e461f02a Mon Sep 17 00:00:00 2001
+From: mkostersitz <spartan114@me.com>
+Date: Tue, 20 Oct 2026 17:58:10 +0000
+Subject: [PATCH] Duo settings: switching the Microsoft Launcher mode resets
+ the launcher completely
+
+After a mode switch the launcher crash-looped ("Wrong card list revision!": its feed data is per mode) and
+"Launcher Settings" showed "App not installed" (SettingActivity/ESettingActivity left disabled in the package's
+component state, which survives a data clear). Now a mode change force-stops the launcher, clears its data, puts all
+its components back to the default enabled state and starts home again.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ app/src/main/java/me/phh/treble/app/Duo.kt | 65 +++++++++++++++++++---
+ app/src/main/res/xml/pref_duo.xml          |  2 +-
+ 2 files changed, 57 insertions(+), 10 deletions(-)
+
+diff --git a/app/src/main/java/me/phh/treble/app/Duo.kt b/app/src/main/java/me/phh/treble/app/Duo.kt
+index cf1aece..5ce1d6e 100644
+--- a/app/src/main/java/me/phh/treble/app/Duo.kt
++++ b/app/src/main/java/me/phh/treble/app/Duo.kt
+@@ -23,6 +23,60 @@ object Duo: EntryStartup {
+     private var penChargerBroadcastReceiver: WirelessPenChargerBroadcastReceiver? = null
+     private var penChargerIntentFilter: IntentFilter? = null
+ 
++    /**
++     * Microsoft Launcher keeps per-mode state (feed card list revision, enabled/disabled settings activities) that the
++     * other mode cannot read: after a switch it crash-loops ("Wrong card list revision!") and "Launcher Settings" says
++     * "App not installed". So a mode change resets the launcher completely.
++     */
++    private fun resetMicrosoftLauncher(ctx: Context) {
++        val pkg = "com.microsoft.launcher"
++        kotlin.concurrent.thread {
++            try {
++                val am = ctx.getSystemService(android.app.ActivityManager::class.java)
++                try {
++                    android.app.ActivityManager::class.java
++                        .getMethod("forceStopPackage", String::class.java).invoke(am, pkg)
++                } catch (e: Exception) {
++                    Log.e("PHH", "Could not force-stop $pkg", e)
++                }
++                try {
++                    android.app.ActivityManager::class.java
++                        .getMethod("clearApplicationUserData", String::class.java,
++                            Class.forName("android.content.pm.IPackageDataObserver"))
++                        .invoke(am, pkg, null)
++                } catch (e: Exception) {
++                    Log.e("PHH", "Could not clear the data of $pkg", e)
++                }
++                Thread.sleep(1500)
++                // Component enable states live outside the app data: put every component back to its default.
++                val pm = ctx.packageManager
++                val flags = android.content.pm.PackageManager.GET_ACTIVITIES or
++                    android.content.pm.PackageManager.GET_SERVICES or
++                    android.content.pm.PackageManager.GET_RECEIVERS or
++                    android.content.pm.PackageManager.GET_PROVIDERS or
++                    android.content.pm.PackageManager.MATCH_DISABLED_COMPONENTS
++                val info = pm.getPackageInfo(pkg, flags)
++                val comps = ArrayList<android.content.pm.ComponentInfo>()
++                info.activities?.let { comps.addAll(it) }
++                info.services?.let { comps.addAll(it) }
++                info.receivers?.let { comps.addAll(it) }
++                info.providers?.let { comps.addAll(it) }
++                for (c in comps) {
++                    pm.setComponentEnabledSetting(
++                        android.content.ComponentName(c.packageName, c.name),
++                        android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
++                        android.content.pm.PackageManager.DONT_KILL_APP)
++                }
++                Log.d("PHH", "Reset ${comps.size} components of $pkg")
++                ctx.startActivity(Intent(Intent.ACTION_MAIN)
++                    .addCategory(Intent.CATEGORY_HOME)
++                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
++            } catch (e: Exception) {
++                Log.e("PHH", "Could not reset $pkg", e)
++            }
++        }
++    }
++
+     val spListener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
+         when(key) {
+             DuoSettings.disableHingeGap -> {
+@@ -62,15 +116,8 @@ object Duo: EntryStartup {
+                 val mode = if (sp.getString(key, "duo") == "tablet") "tablet" else "duo"
+                 if (SystemProperties.get("persist.sys.phh.duo.msl_mode", "duo") != mode) {
+                     Misc.safeSetprop("persist.sys.phh.duo.msl_mode", mode)
+-                    // The launcher reads the features once at startup: restart it to apply the new mode.
+-                    try {
+-                        val am = ctxt?.getSystemService(android.app.ActivityManager::class.java)
+-                        android.app.ActivityManager::class.java
+-                            .getMethod("forceStopPackage", String::class.java)
+-                            .invoke(am, "com.microsoft.launcher")
+-                    } catch (e: Exception) {
+-                        Log.e("PHH", "Could not restart Microsoft Launcher", e)
+-                    }
++                    // The launcher reads the features once at startup and keeps per-mode state: reset it completely.
++                    ctxt?.let { resetMicrosoftLauncher(it) }
+                 }
+             }
+ 
+diff --git a/app/src/main/res/xml/pref_duo.xml b/app/src/main/res/xml/pref_duo.xml
+index 5b4774d..3b4f6da 100644
+--- a/app/src/main/res/xml/pref_duo.xml
++++ b/app/src/main/res/xml/pref_duo.xml
+@@ -33,7 +33,7 @@
+             android:entryValues="@array/pref_msl_mode_values"
+             android:key="key_duo_msl_mode"
+             android:title="Launcher behavior"
+-            android:summary="%s. Original Duo: hinge-aware dual-screen layout. Android tablet: the plain tablet layout. Restarts Microsoft Launcher."
++            android:summary="%s. Original Duo: hinge-aware dual-screen layout. Android tablet: the plain tablet layout. Switching resets Microsoft Launcher (its layout and settings)."
+         />
+     </PreferenceCategory>
+ 
+-- 
+2.43.0
+

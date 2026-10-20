@@ -1,0 +1,44 @@
+From bb19d1576435a18ded6b94183ac10db712530da7 Mon Sep 17 00:00:00 2001
+From: mkostersitz <spartan114@me.com>
+Date: Tue, 20 Oct 2026 17:58:30 +0000
+Subject: [PATCH] DisplayMask: log the spanned decision only when it changes
+
+The launcher asks about 25 times a second; logging every call flooded the log buffer.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../com/microsoft/device/display/DisplayMask.java     | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/surface-sdk/java/com/microsoft/device/display/DisplayMask.java b/surface-sdk/java/com/microsoft/device/display/DisplayMask.java
+index 1b908c9..ffc775f 100644
+--- a/surface-sdk/java/com/microsoft/device/display/DisplayMask.java
++++ b/surface-sdk/java/com/microsoft/device/display/DisplayMask.java
+@@ -91,6 +91,9 @@ public final class DisplayMask {
+         return region;
+     }
+ 
++    /** Last logged decision: the launcher asks ~25 times a second, only log changes. */
++    private static String sLastLogged;
++
+     /** True unless the default display has been resized to a single panel. */
+     private boolean isSpanned(int[] g) {
+         if (mContext == null) return true;
+@@ -101,8 +104,12 @@ public final class DisplayMask {
+             android.util.DisplayMetrics m = new android.util.DisplayMetrics();
+             d.getRealMetrics(m);
+             boolean spanned = Math.max(m.widthPixels, m.heightPixels) >= g[0] - g[3];
+-            android.util.Log.d("DuoDisplayMask", "real=" + m.widthPixels + "x" + m.heightPixels
+-                    + " rotation=" + d.getRotation() + " spanned=" + spanned + " pkg=" + mContext.getPackageName());
++            String state = "real=" + m.widthPixels + "x" + m.heightPixels
++                    + " rotation=" + d.getRotation() + " spanned=" + spanned + " pkg=" + mContext.getPackageName();
++            if (!state.equals(sLastLogged)) {
++                sLastLogged = state;
++                android.util.Log.d("DuoDisplayMask", state);
++            }
+             return spanned;
+         } catch (RuntimeException e) {
+             return true;
+-- 
+2.43.0
+

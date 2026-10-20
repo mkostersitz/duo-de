@@ -1,9 +1,9 @@
 {
   "version": "v2026.10.20",
-  "date": "1792519139",
+  "date": "1792519379",
   "variants": [
     {
-      "name": "treble_arm64_bgN",
+      "name": "treble_arm64_bvN",
       "size": "1540538752",
       "xz_sha256": "ab01942e4e8395c1fa50923ffa213de3379b0b848da6952991f5722cee01a7ae",
       "sha256": "36b7f5277d8dfaf7e9d7b3a597664b71a9dd50382b5be8138860f5a3017d586b",

@@ -1,0 +1,52 @@
+From f421197ed0dfdfd348d2aba497081173ddecad64 Mon Sep 17 00:00:00 2001
+From: mkostersitz <spartan114@me.com>
+Date: Tue, 20 Oct 2026 15:04:10 +0000
+Subject: [PATCH] Let the user hide the Surface Duo features from Microsoft
+ Launcher
+
+ApplicationPackageManager.hasSystemFeature() returns false for com.microsoft.surface.* when the
+caller is com.microsoft.launcher and persist.sys.phh.duo.msl_mode is "tablet", so the launcher
+falls back to its plain Android tablet behaviour. Default ("duo") changes nothing.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Change-Id: I1f32fb6bb2a70a88faef2ed41a60245d86345c43
+---
+ .../android/app/ApplicationPackageManager.java    | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/core/java/android/app/ApplicationPackageManager.java b/core/java/android/app/ApplicationPackageManager.java
+index 1a035945bfe4..97f197bfaedc 100644
+--- a/core/java/android/app/ApplicationPackageManager.java
++++ b/core/java/android/app/ApplicationPackageManager.java
+@@ -795,6 +795,18 @@ public class ApplicationPackageManager extends PackageManager {
+         return hasSystemFeature(name, 0);
+     }
+ 
++    /**
++     * DUO-DE: Microsoft Launcher decides to run in its Surface Duo ("E OS") mode from the
++     * com.microsoft.surface.* system features. The user can choose the plain Android tablet
++     * behaviour in DUO-DE Settings (persist.sys.phh.duo.msl_mode=tablet): hide those features from
++     * that one app only. Other apps and the system are unaffected.
++     */
++    private boolean hideDuoFeatureFromMicrosoftLauncher(String name) {
++        if (name == null || !name.startsWith("com.microsoft.surface.")) return false;
++        if (mContext == null || !"com.microsoft.launcher".equals(mContext.getPackageName())) return false;
++        return "tablet".equals(android.os.SystemProperties.get("persist.sys.phh.duo.msl_mode", "duo"));
++    }
++
+     /**
+      * The API and cache name for hasSystemFeature.
+      */
+@@ -827,6 +839,9 @@ public class ApplicationPackageManager extends PackageManager {
+ 
+     @Override
+     public boolean hasSystemFeature(String name, int version) {
++        if (hideDuoFeatureFromMicrosoftLauncher(name)) {
++            return false;
++        }
+         // We check for system features in the following order:
+         //    * Build time-defined system features (constant, very efficient)
+         //    * SDK-defined system features (cached at process start, very efficient)
+-- 
+2.43.0
+

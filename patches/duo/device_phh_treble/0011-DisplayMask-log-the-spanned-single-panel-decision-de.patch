@@ -1,0 +1,31 @@
+From 0c133f619233a368ed3c0bd332808173f2ff4292 Mon Sep 17 00:00:00 2001
+From: mkostersitz <spartan114@me.com>
+Date: Tue, 20 Oct 2026 15:04:38 +0000
+Subject: [PATCH] DisplayMask: log the spanned/single-panel decision (debug)
+
+Logs the real display size, rotation and the result (tag DuoDisplayMask) every time the launcher asks, so a layout glitch during a screen flip can be matched with the display size at that moment.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../java/com/microsoft/device/display/DisplayMask.java       | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/surface-sdk/java/com/microsoft/device/display/DisplayMask.java b/surface-sdk/java/com/microsoft/device/display/DisplayMask.java
+index 3dfc518..1b908c9 100644
+--- a/surface-sdk/java/com/microsoft/device/display/DisplayMask.java
++++ b/surface-sdk/java/com/microsoft/device/display/DisplayMask.java
+@@ -100,7 +100,10 @@ public final class DisplayMask {
+             if (d == null) return true;
+             android.util.DisplayMetrics m = new android.util.DisplayMetrics();
+             d.getRealMetrics(m);
+-            return Math.max(m.widthPixels, m.heightPixels) >= g[0] - g[3];
++            boolean spanned = Math.max(m.widthPixels, m.heightPixels) >= g[0] - g[3];
++            android.util.Log.d("DuoDisplayMask", "real=" + m.widthPixels + "x" + m.heightPixels
++                    + " rotation=" + d.getRotation() + " spanned=" + spanned + " pkg=" + mContext.getPackageName());
++            return spanned;
+         } catch (RuntimeException e) {
+             return true;
+         }
+-- 
+2.43.0
+

@@ -1,0 +1,178 @@
+From 6078a2cb601acbb987aa05ed1aef60e851deda4f Mon Sep 17 00:00:00 2001
+From: mkostersitz <spartan114@me.com>
+Date: Tue, 20 Oct 2026 16:09:04 +0000
+Subject: [PATCH 6/6] Duo: static Surface Duo wallpapers (default Indigo) read
+ from the vendor partition
+
+The stock wallpapers are in /vendor/app/surface_wallpapers. A first-run step sets Indigo as the default static
+wallpaper and DUO-DE Settings > Wallpaper lets the user pick any of the nine. Static on purpose: with a live
+wallpaper (Microsoft Launcher's Bing wallpaper) the other panel sometimes stays black after a screen flip.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ app/src/main/AndroidManifest.xml              |  7 ++
+ .../java/me/phh/treble/app/DuoWallpapers.kt   | 91 +++++++++++++++++++
+ .../java/me/phh/treble/app/EntryService.kt    |  1 +
+ app/src/main/res/xml/pref_duo.xml             | 11 +++
+ 4 files changed, 110 insertions(+)
+ create mode 100644 app/src/main/java/me/phh/treble/app/DuoWallpapers.kt
+
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index cfeae84..d2314ac 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -15,6 +15,7 @@
+ 
+     <uses-permission android:name="android.permission.VIBRATE" />
+     <uses-permission android:name="android.permission.FORCE_STOP_PACKAGES" />
++    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+ 
+     <application
+         android:allowBackup="true"
+@@ -111,6 +112,12 @@
+             </intent-filter>
+         </activity>
+ 
++        <activity
++            android:name=".DuoWallpapersActivity"
++            android:label="Surface Duo wallpapers"
++            android:theme="@android:style/Theme.DeviceDefault"
++            android:exported="false" />
++
+         <activity
+             android:name=".RecommendedAppsActivity"
+             android:label="Recommended apps"
+diff --git a/app/src/main/java/me/phh/treble/app/DuoWallpapers.kt b/app/src/main/java/me/phh/treble/app/DuoWallpapers.kt
+new file mode 100644
+index 0000000..834ae88
+--- /dev/null
++++ b/app/src/main/java/me/phh/treble/app/DuoWallpapers.kt
+@@ -0,0 +1,91 @@
++package me.phh.treble.app
++
++import android.app.Activity
++import android.app.WallpaperManager
++import android.content.Context
++import android.os.Bundle
++import android.preference.PreferenceManager
++import android.util.Log
++import android.view.ViewGroup
++import android.widget.Button
++import android.widget.LinearLayout
++import android.widget.ScrollView
++import android.widget.TextView
++import android.widget.Toast
++import java.io.File
++import java.io.FileInputStream
++
++/**
++ * The stock Surface Duo wallpapers live on the vendor partition (/vendor/app/surface_wallpapers). This applies one as a
++ * STATIC wallpaper: a live wallpaper layer makes the other panel stay black after a flip on the Duo 2, so it is not
++ * used. Nothing is copied into the system image, the files are read at runtime.
++ */
++object DuoWallpapers : EntryStartup {
++    const val DIR = "/vendor/app/surface_wallpapers"
++    private const val PREF_DEFAULT_SET = "duo_wallpapers_default_set"
++    private const val DEFAULT_NAME = "001_surface_duo_indigo.webp"
++
++    fun files(): List<File> =
++        (File(DIR).listFiles { f -> f.isFile && f.name.endsWith(".webp") } ?: emptyArray()).sortedBy { it.name }
++
++    /** "001_surface_duo_indigo.webp" -> "Surface Duo Indigo" */
++    fun title(f: File): String =
++        f.nameWithoutExtension.substringAfter('_').split('_').joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
++
++    fun apply(ctx: Context, f: File): Boolean =
++        try {
++            FileInputStream(f).use { input ->
++                WallpaperManager.getInstance(ctx).setStream(input, null, true,
++                    WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK)
++            }
++            true
++        } catch (e: Exception) {
++            Log.e("PHH", "Could not set wallpaper ${f.name}", e)
++            false
++        }
++
++    override fun startup(ctxt: Context) {
++        if (!DuoSettings.enabled()) return
++        val sp = PreferenceManager.getDefaultSharedPreferences(ctxt)
++        if (sp.getBoolean(PREF_DEFAULT_SET, false)) return
++        val default = files().firstOrNull { it.name == DEFAULT_NAME } ?: return
++        // Only on the very first run: never replace a wallpaper the user chose later.
++        if (apply(ctxt, default)) {
++            sp.edit().putBoolean(PREF_DEFAULT_SET, true).apply()
++            Log.d("PHH", "Default wallpaper set to ${default.name}")
++        }
++    }
++}
++
++class DuoWallpapersActivity : Activity() {
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        title = "Surface Duo wallpapers"
++        val pad = (16 * resources.displayMetrics.density).toInt()
++        val root = LinearLayout(this).apply {
++            orientation = LinearLayout.VERTICAL
++            setPadding(pad, pad, pad, pad)
++        }
++        root.addView(TextView(this).apply {
++            text = "Pick a Surface Duo wallpaper. It is applied as a static wallpaper (a live wallpaper can leave one " +
++                "screen black after a flip)."
++            textSize = 16f
++        })
++        val files = DuoWallpapers.files()
++        if (files.isEmpty()) {
++            root.addView(TextView(this).apply { text = "No wallpapers found in ${DuoWallpapers.DIR}." })
++        }
++        for (f in files) {
++            root.addView(Button(this).apply {
++                text = DuoWallpapers.title(f)
++                setOnClickListener {
++                    val ok = DuoWallpapers.apply(this@DuoWallpapersActivity, f)
++                    Toast.makeText(this@DuoWallpapersActivity,
++                        if (ok) "Wallpaper set: ${DuoWallpapers.title(f)}" else "Could not set the wallpaper",
++                        Toast.LENGTH_SHORT).show()
++                }
++            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
++        }
++        setContentView(ScrollView(this).apply { addView(root) })
++    }
++}
+diff --git a/app/src/main/java/me/phh/treble/app/EntryService.kt b/app/src/main/java/me/phh/treble/app/EntryService.kt
+index 48bc9cd..8749500 100644
+--- a/app/src/main/java/me/phh/treble/app/EntryService.kt
++++ b/app/src/main/java/me/phh/treble/app/EntryService.kt
+@@ -58,6 +58,7 @@ class EntryService: Service() {
+             tryC { Hct.startup(this) }
+             tryC { Duo.startup(this) }
+             tryC { RecommendedApps.startup(this) }
++            tryC { DuoWallpapers.startup(this) }
+ 
+             tryC { Desktop.startup(this) }
+             tryC { Lid.startup(this) }
+diff --git a/app/src/main/res/xml/pref_duo.xml b/app/src/main/res/xml/pref_duo.xml
+index f798e61..4fa7180 100644
+--- a/app/src/main/res/xml/pref_duo.xml
++++ b/app/src/main/res/xml/pref_duo.xml
+@@ -29,6 +29,17 @@
+         />
+     </PreferenceCategory>
+ 
++    <PreferenceCategory android:title="Wallpaper">
++        <Preference
++            android:key="key_duo_wallpapers"
++            android:title="Surface Duo wallpapers"
++            android:summary="Choose one of the stock Surface Duo wallpapers (static).">
++            <intent
++                android:targetPackage="me.phh.treble.app"
++                android:targetClass="me.phh.treble.app.DuoWallpapersActivity" />
++        </Preference>
++    </PreferenceCategory>
++
+     <PreferenceCategory android:title="Recommended apps">
+         <Preference
+             android:key="key_duo_recommended_apps"
+-- 
+2.43.0
+

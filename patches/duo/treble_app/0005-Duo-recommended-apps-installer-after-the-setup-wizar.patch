@@ -1,0 +1,299 @@
+From 06717d0023472c9c02fa1e76ce97923670a80945 Mon Sep 17 00:00:00 2001
+From: mkostersitz <spartan114@me.com>
+Date: Tue, 20 Oct 2026 15:42:23 +0000
+Subject: [PATCH 5/6] Duo: recommended apps installer after the setup wizard
+
+After setup completes (USER_SETUP_COMPLETE) a notification offers a checklist of the apps the stock Surface
+Duo shipped, plus YouTube and Google Wallet. Each tap opens one app's Play Store page; a GSI cannot install
+from Play silently. Also reachable from DUO-DE Settings > Recommended apps.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ app/src/main/AndroidManifest.xml              |   6 +
+ .../java/me/phh/treble/app/EntryService.kt    |   1 +
+ .../java/me/phh/treble/app/RecommendedApps.kt | 221 ++++++++++++++++++
+ app/src/main/res/xml/pref_duo.xml             |  11 +
+ 4 files changed, 239 insertions(+)
+ create mode 100644 app/src/main/java/me/phh/treble/app/RecommendedApps.kt
+
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 27a730b..cfeae84 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -111,6 +111,12 @@
+             </intent-filter>
+         </activity>
+ 
++        <activity
++            android:name=".RecommendedAppsActivity"
++            android:label="Recommended apps"
++            android:theme="@android:style/Theme.DeviceDefault"
++            android:exported="false" />
++
+         <activity
+             android:name=".UpdaterActivity"
+             android:label="@string/title_activity_updater"
+diff --git a/app/src/main/java/me/phh/treble/app/EntryService.kt b/app/src/main/java/me/phh/treble/app/EntryService.kt
+index e33f300..48bc9cd 100644
+--- a/app/src/main/java/me/phh/treble/app/EntryService.kt
++++ b/app/src/main/java/me/phh/treble/app/EntryService.kt
+@@ -57,6 +57,7 @@ class EntryService: Service() {
+             tryC { Custom.startup(this) }
+             tryC { Hct.startup(this) }
+             tryC { Duo.startup(this) }
++            tryC { RecommendedApps.startup(this) }
+ 
+             tryC { Desktop.startup(this) }
+             tryC { Lid.startup(this) }
+diff --git a/app/src/main/java/me/phh/treble/app/RecommendedApps.kt b/app/src/main/java/me/phh/treble/app/RecommendedApps.kt
+new file mode 100644
+index 0000000..6a6dddd
+--- /dev/null
++++ b/app/src/main/java/me/phh/treble/app/RecommendedApps.kt
+@@ -0,0 +1,221 @@
++package me.phh.treble.app
++
++import android.app.Activity
++import android.app.Notification
++import android.app.NotificationChannel
++import android.app.NotificationManager
++import android.app.PendingIntent
++import android.content.ActivityNotFoundException
++import android.content.Context
++import android.content.Intent
++import android.content.pm.PackageManager
++import android.database.ContentObserver
++import android.net.Uri
++import android.os.Bundle
++import android.os.Handler
++import android.os.Looper
++import android.preference.PreferenceManager
++import android.util.Log
++import android.view.Gravity
++import android.view.ViewGroup
++import android.widget.Button
++import android.widget.CheckBox
++import android.widget.LinearLayout
++import android.widget.ScrollView
++import android.widget.TextView
++import android.widget.Toast
++
++data class RecommendedApp(val pkg: String, val label: String, val group: String, val defaultChecked: Boolean = true)
++
++/**
++ * After the setup wizard finishes, offer a list of apps the stock Surface Duo shipped (and the Google apps the
++ * GApps image does not include). Installing is done by the user: each tap opens the app's Play Store page, since a
++ * GSI cannot install from Play silently.
++ */
++object RecommendedApps : EntryStartup {
++    const val PREF_DONE = "recommended_apps_done"
++    const val PREF_NOTIFIED = "recommended_apps_notified"
++    private const val CHANNEL = "recommended_apps"
++    private const val NOTIF_ID = 4711
++
++    val apps = listOf(
++        RecommendedApp("com.microsoft.office.officehubrow", "Microsoft 365 Copilot (Office)", "Microsoft"),
++        RecommendedApp("com.microsoft.office.outlook", "Outlook", "Microsoft"),
++        RecommendedApp("com.microsoft.teams", "Teams", "Microsoft"),
++        RecommendedApp("com.microsoft.skydrive", "OneDrive", "Microsoft"),
++        RecommendedApp("com.microsoft.emmx", "Edge", "Microsoft"),
++        RecommendedApp("com.microsoft.office.onenote", "OneNote", "Microsoft"),
++        RecommendedApp("com.microsoft.todos", "To Do", "Microsoft"),
++        RecommendedApp("com.azure.authenticator", "Authenticator", "Microsoft"),
++        RecommendedApp("com.microsoft.appmanager", "Link to Windows", "Microsoft"),
++        RecommendedApp("com.microsoft.surfaceaudio", "Surface Audio", "Microsoft"),
++        RecommendedApp("com.touchtype.swiftkey", "SwiftKey", "Microsoft"),
++        RecommendedApp("com.microsoft.bing", "Bing", "Microsoft"),
++        RecommendedApp("com.microsoft.amp.apps.bingnews", "Microsoft Start (News)", "Microsoft"),
++        RecommendedApp("com.microsoft.office.officelens", "Microsoft Lens", "Microsoft"),
++        RecommendedApp("com.microsoft.windowsintune.companyportal", "Intune Company Portal", "Microsoft"),
++        RecommendedApp("com.gamepass", "Xbox Game Pass", "Microsoft"),
++        RecommendedApp("com.linkedin.android", "LinkedIn", "Microsoft", false),
++        RecommendedApp("com.google.android.youtube", "YouTube", "Google"),
++        RecommendedApp("com.google.android.apps.walletnfcrel", "Google Wallet", "Google")
++    )
++
++    fun isInstalled(ctx: Context, pkg: String): Boolean =
++        try {
++            ctx.packageManager.getPackageInfo(pkg, 0)
++            true
++        } catch (e: PackageManager.NameNotFoundException) {
++            false
++        }
++
++    private fun setupComplete(ctx: Context) =
++        android.provider.Settings.Secure.getInt(ctx.contentResolver, "user_setup_complete", 0) == 1
++
++    override fun startup(ctxt: Context) {
++        if (!DuoSettings.enabled()) return
++        val sp = PreferenceManager.getDefaultSharedPreferences(ctxt)
++        if (sp.getBoolean(PREF_DONE, false) || sp.getBoolean(PREF_NOTIFIED, false)) return
++        if (setupComplete(ctxt)) {
++            notifyUser(ctxt)
++            return
++        }
++        // Setup wizard still running: wait for it to finish.
++        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
++            override fun onChange(selfChange: Boolean) {
++                if (setupComplete(ctxt)) {
++                    ctxt.contentResolver.unregisterContentObserver(this)
++                    notifyUser(ctxt)
++                }
++            }
++        }
++        ctxt.contentResolver.registerContentObserver(
++            android.provider.Settings.Secure.getUriFor("user_setup_complete"), false, observer)
++    }
++
++    private fun notifyUser(ctx: Context) {
++        val sp = PreferenceManager.getDefaultSharedPreferences(ctx)
++        if (sp.getBoolean(PREF_NOTIFIED, false)) return
++        try {
++            val nm = ctx.getSystemService(NotificationManager::class.java)
++            nm.createNotificationChannel(
++                NotificationChannel(CHANNEL, "Recommended apps", NotificationManager.IMPORTANCE_DEFAULT))
++            val open = Intent(ctx, RecommendedAppsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++            val pi = PendingIntent.getActivity(ctx, 0, open,
++                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
++            val n = Notification.Builder(ctx, CHANNEL)
++                .setSmallIcon(R.drawable.ic_settings)
++                .setContentTitle("Install your Duo apps")
++                .setContentText("Choose the Microsoft and Google apps to install from Play")
++                .setContentIntent(pi)
++                .setAutoCancel(true)
++                .build()
++            nm.notify(NOTIF_ID, n)
++            sp.edit().putBoolean(PREF_NOTIFIED, true).apply()
++        } catch (e: Exception) {
++            Log.e("PHH", "Recommended apps notification failed", e)
++        }
++    }
++
++    fun markDone(ctx: Context) {
++        PreferenceManager.getDefaultSharedPreferences(ctx).edit().putBoolean(PREF_DONE, true).apply()
++        ctx.getSystemService(NotificationManager::class.java)?.cancel(NOTIF_ID)
++    }
++}
++
++class RecommendedAppsActivity : Activity() {
++    private val boxes = LinkedHashMap<String, CheckBox>()
++    private val statuses = LinkedHashMap<String, TextView>()
++    private val opened = HashSet<String>()
++    private lateinit var nextButton: Button
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        title = "Recommended apps"
++        val pad = (16 * resources.displayMetrics.density).toInt()
++        val root = LinearLayout(this).apply {
++            orientation = LinearLayout.VERTICAL
++            setPadding(pad, pad, pad, pad)
++        }
++        root.addView(TextView(this).apply {
++            text = "Apps the Surface Duo shipped with, plus YouTube and Google Wallet. Tick what you want, then tap " +
++                "\"Open next in Play\" and press Install on each page. Come back here with Back."
++            textSize = 16f
++        })
++        var group = ""
++        for (app in RecommendedApps.apps) {
++            if (app.group != group) {
++                group = app.group
++                root.addView(TextView(this).apply {
++                    text = group
++                    textSize = 18f
++                    setPadding(0, pad, 0, 0)
++                })
++            }
++            val row = LinearLayout(this).apply {
++                orientation = LinearLayout.HORIZONTAL
++                gravity = Gravity.CENTER_VERTICAL
++            }
++            val box = CheckBox(this).apply {
++                text = app.label
++                isChecked = app.defaultChecked
++            }
++            row.addView(box, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
++            val status = TextView(this)
++            row.addView(status)
++            root.addView(row)
++            boxes[app.pkg] = box
++            statuses[app.pkg] = status
++        }
++        nextButton = Button(this).apply {
++            setOnClickListener { openNext() }
++        }
++        root.addView(nextButton)
++        root.addView(Button(this).apply {
++            text = "Done"
++            setOnClickListener {
++                RecommendedApps.markDone(this@RecommendedAppsActivity)
++                finish()
++            }
++        })
++        setContentView(ScrollView(this).apply { addView(root) })
++    }
++
++    override fun onResume() {
++        super.onResume()
++        refresh()
++    }
++
++    private fun pending(): List<String> =
++        boxes.filter { (pkg, box) -> box.isChecked && !RecommendedApps.isInstalled(this, pkg) && pkg !in opened }
++            .keys.toList()
++
++    private fun refresh() {
++        for ((pkg, status) in statuses) {
++            val installed = RecommendedApps.isInstalled(this, pkg)
++            status.text = when {
++                installed -> "Installed"
++                pkg in opened -> "Opened in Play"
++                else -> ""
++            }
++            boxes[pkg]?.isEnabled = !installed
++            if (installed) boxes[pkg]?.isChecked = false
++        }
++        val left = pending().size
++        nextButton.text = if (left > 0) "Open next in Play ($left left)" else "Nothing left to open"
++        nextButton.isEnabled = left > 0
++        if (RecommendedApps.apps.all { RecommendedApps.isInstalled(this, it.pkg) }) {
++            RecommendedApps.markDone(this)
++        }
++    }
++
++    private fun openNext() {
++        val next = pending().firstOrNull() ?: return
++        opened.add(next)
++        try {
++            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$next"))
++                .setPackage("com.android.vending"))
++        } catch (e: ActivityNotFoundException) {
++            Toast.makeText(this, "Google Play Store is not available", Toast.LENGTH_LONG).show()
++        }
++    }
++}
+diff --git a/app/src/main/res/xml/pref_duo.xml b/app/src/main/res/xml/pref_duo.xml
+index b9c8496..f798e61 100644
+--- a/app/src/main/res/xml/pref_duo.xml
++++ b/app/src/main/res/xml/pref_duo.xml
+@@ -29,6 +29,17 @@
+         />
+     </PreferenceCategory>
+ 
++    <PreferenceCategory android:title="Recommended apps">
++        <Preference
++            android:key="key_duo_recommended_apps"
++            android:title="Install recommended apps"
++            android:summary="The Microsoft and Google apps the Surface Duo ships with, opened one by one in Play.">
++            <intent
++                android:targetPackage="me.phh.treble.app"
++                android:targetClass="me.phh.treble.app.RecommendedAppsActivity" />
++        </Preference>
++    </PreferenceCategory>
++
+     <PreferenceCategory android:title="Pen Charging" android:key="key_duo_pen_charging_category">
+         <SwitchPreference
+             android:defaultValue="false"
+-- 
+2.43.0
+

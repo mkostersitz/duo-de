@@ -1,0 +1,33 @@
+From 528c8eedf0bb6b8aeb5913659f431c46c1086acb Mon Sep 17 00:00:00 2001
+From: Mike Kostersitz <mkostersitz@mac.com>
+Date: Wed, 21 Oct 2026 20:37:52 +0000
+Subject: [PATCH] Also hide the displaymask feature from Microsoft Launcher in
+ tablet mode
+
+The displaymask feature is declared system-wide for the Microsoft apps; in the launcher mode setting "Android tablet" the launcher must keep
+seeing a non-Duo device, so extend the hasSystemFeature filter added for the com.microsoft.surface.* features to this feature too.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Change-Id: I607c2b70a765c4af2878c2d2246ca58aa6ae57ca
+---
+ core/java/android/app/ApplicationPackageManager.java | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/core/java/android/app/ApplicationPackageManager.java b/core/java/android/app/ApplicationPackageManager.java
+index 97f197bfaedc..1c24e8b82a99 100644
+--- a/core/java/android/app/ApplicationPackageManager.java
++++ b/core/java/android/app/ApplicationPackageManager.java
+@@ -802,7 +802,9 @@ public class ApplicationPackageManager extends PackageManager {
+      * that one app only. Other apps and the system are unaffected.
+      */
+     private boolean hideDuoFeatureFromMicrosoftLauncher(String name) {
+-        if (name == null || !name.startsWith("com.microsoft.surface.")) return false;
++        if (name == null) return false;
++        if (!name.startsWith("com.microsoft.surface.")
++                && !name.equals("com.microsoft.device.display.displaymask")) return false;
+         if (mContext == null || !"com.microsoft.launcher".equals(mContext.getPackageName())) return false;
+         return "tablet".equals(android.os.SystemProperties.get("persist.sys.phh.duo.msl_mode", "duo"));
+     }
+-- 
+2.43.0
+

@@ -1,0 +1,70 @@
+From c403a3b855ba9c4766e7fbca06aad273fa5444df Mon Sep 17 00:00:00 2001
+From: Mike Kostersitz <mkostersitz@mac.com>
+Date: Wed, 21 Oct 2026 21:31:37 +0000
+Subject: [PATCH] DisplayMask: no hinge for a single panel when the hinge gap
+ is disabled
+
+With the gap off the seam is a 2 px strip straddling the panel boundary, so the rectangle intersection also reported it for a single panel
+(1 px overlap). Use an axis rule instead: the seam is visible only when the app-visible area is wider than one panel along the natural width
+axis. Adds host tests.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../java/com/microsoft/device/display/DisplayMask.java   | 4 +++-
+ .../java/com/microsoft/device/display/HingeMath.java     | 9 +++++++++
+ surface-sdk/boot/test/HingeMathTest.java                 | 6 ++++++
+ 3 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/surface-sdk/boot/java/com/microsoft/device/display/DisplayMask.java b/surface-sdk/boot/java/com/microsoft/device/display/DisplayMask.java
+index d4129fe..71d25d3 100644
+--- a/surface-sdk/boot/java/com/microsoft/device/display/DisplayMask.java
++++ b/surface-sdk/boot/java/com/microsoft/device/display/DisplayMask.java
+@@ -115,7 +115,9 @@ public final class DisplayMask {
+             d.getRectSize(size);
+             int rotation = d.getRotation();
+             int[] logical = HingeMath.rotate(hinge, mGeometry[0], mGeometry[1], rotation);
+-            boolean visible = HingeMath.intersects(logical, new int[] {0, 0, size.width(), size.height()});
++            boolean visible = mGeometry[3] == 0
++                    ? HingeMath.gaplessSpanned(size.width(), size.height(), rotation, mGeometry[2])
++                    : HingeMath.intersects(logical, new int[] {0, 0, size.width(), size.height()});
+             String state = "app=" + size.width() + "x" + size.height() + " rotation=" + rotation
+                     + " hinge=" + (visible ? "visible" : "none") + " pkg=" + mContext.getPackageName();
+             if (!state.equals(sLastLogged)) {
+diff --git a/surface-sdk/boot/java/com/microsoft/device/display/HingeMath.java b/surface-sdk/boot/java/com/microsoft/device/display/HingeMath.java
+index 1d7111d..37c1305 100644
+--- a/surface-sdk/boot/java/com/microsoft/device/display/HingeMath.java
++++ b/surface-sdk/boot/java/com/microsoft/device/display/HingeMath.java
+@@ -40,4 +40,13 @@ final class HingeMath {
+     static int[] gaplessSeam(int panel, int height) {
+         return new int[] {panel - 1, 0, panel + 1, height};
+     }
++
++    /**
++     * Gapless display: the seam is a 2 px strip straddling the panel boundary, so a rectangle intersection would also report it for a single
++     * panel (its edge touches the seam by 1 px). Instead the seam counts as visible only when the app-visible area is wider than one panel
++     * along the display's natural width axis (width at rotation 0/2, height at rotation 1/3).
++     */
++    static boolean gaplessSpanned(int areaWidth, int areaHeight, int rotation, int panel) {
++        return ((rotation & 1) == 0 ? areaWidth : areaHeight) > panel;
++    }
+ }
+diff --git a/surface-sdk/boot/test/HingeMathTest.java b/surface-sdk/boot/test/HingeMathTest.java
+index c2676c2..94ad8f9 100644
+--- a/surface-sdk/boot/test/HingeMathTest.java
++++ b/surface-sdk/boot/test/HingeMathTest.java
+@@ -49,6 +49,12 @@ public class HingeMathTest {
+         eq("gapless seam rot1", new int[] {0, 1343, 1892, 1345}, HingeMath.rotate(seam, 2688, 1892, 1));
+         truth("gapless full area sees seam", true, HingeMath.intersects(seam, new int[] {0, 0, 2688, 1892}));
+         truth("gapless single panel: no seam", false, HingeMath.intersects(seam, new int[] {0, 0, 1343, 1892}));
++        truth("gapless spanned 2688x1892 rot0", true, HingeMath.gaplessSpanned(2688, 1892, 0, 1344));
++        truth("gapless single panel 1344x1892 rot0", false, HingeMath.gaplessSpanned(1344, 1892, 0, 1344));
++        truth("gapless spanned portrait 1892x2688 rot1", true, HingeMath.gaplessSpanned(1892, 2688, 1, 1344));
++        truth("gapless single panel portrait 1892x1344 rot1", false, HingeMath.gaplessSpanned(1892, 1344, 1, 1344));
++        truth("gapless single panel portrait 1892x1344 rot3", false, HingeMath.gaplessSpanned(1892, 1344, 3, 1344));
++        truth("gapless 180: spanned 2688x1892 rot2", true, HingeMath.gaplessSpanned(2688, 1892, 2, 1344));
+         System.out.println(failures == 0 ? "ALL PASS" : failures + " FAILURES");
+         if (failures != 0) System.exit(1);
+     }
+-- 
+2.43.0
+

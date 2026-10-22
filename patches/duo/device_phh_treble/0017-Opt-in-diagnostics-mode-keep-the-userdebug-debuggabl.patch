@@ -1,0 +1,74 @@
+From b542bfb4a97339b07ad3173dde141bbeb620daa0 Mon Sep 17 00:00:00 2001
+From: Mike Kostersitz <mkostersitz@mac.com>
+Date: Thu, 22 Oct 2026 22:28:22 +0000
+Subject: [PATCH] Opt-in diagnostics mode: keep the userdebug debuggable state
+ when /data/local/tmp/keep_debuggable exists
+
+The vendor boot image starts with ro.debuggable=0 (first value wins) and rw-system.sh then pretends to be a user build. For diagnostics on a userdebug
+image, creating /data/local/tmp/keep_debuggable (or persist.debug.phh.keep_debuggable=1) makes phh-on-data.sh, which runs as root once /data is readable and
+just before the framework restarts, set ro.debuggable=1 and restart adbd so adb root works. (Debugging non-debuggable apps additionally needs
+ro.build.type=userdebug and persist.debug.dalvik.vm.jdwp.enabled=1, set by hand.) Default behaviour is unchanged.
+
+Net result of the earlier experiments: rw-system.sh keeps an if/else around the debuggable reset, vndk.rc is back to its original, phh-on-data.sh holds the switch.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ phh-on-data.sh | 8 ++++++++
+ rw-system.sh   | 9 ++++++++-
+ vndk.rc        | 1 +
+ 3 files changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/phh-on-data.sh b/phh-on-data.sh
+index a77f66f..d58e659 100644
+--- a/phh-on-data.sh
++++ b/phh-on-data.sh
+@@ -3,6 +3,14 @@
+ vndk="$(getprop persist.sys.vndk)"
+ [ -z "$vndk" ] && vndk="$(getprop ro.vndk.version |grep -oE '^[0-9]+')"
+ 
++# DUO-DE diagnostics (opt-in): this script runs once /data is readable and system_server restarts right after it, so the restarted
++# system_server and apps see ro.debuggable=1 (adb root, JDWP). The vendor boot image starts with ro.debuggable=0 (first value wins).
++# Enable: adb shell touch /data/local/tmp/keep_debuggable   (or setprop persist.debug.phh.keep_debuggable 1), then reboot.
++if [ -e /data/local/tmp/keep_debuggable ] || [ "$(getprop persist.debug.phh.keep_debuggable)" = 1 ] || [ "$(getprop persist.sys.phh.keep_debuggable)" = 1 ];then
++    resetprop_phh ro.debuggable 1
++    setprop ctl.restart adbd
++fi
++
+ if getprop persist.sys.phh.no_vendor_overlay |grep -q true;then
+ 	for part in odm vendor;do
+ 		mount /mnt/phh/empty_dir/ /$part/overlay
+diff --git a/rw-system.sh b/rw-system.sh
+index 8b7ec50..a42505c 100644
+--- a/rw-system.sh
++++ b/rw-system.sh
+@@ -870,7 +870,14 @@ copyprop() {
+     resetprop_phh ro.boot.veritymode enforcing
+     resetprop_phh ro.boot.warranty_bit 0
+     resetprop_phh ro.warranty_bit 0
+-    resetprop_phh ro.debuggable 0
++    # DUO-DE: opt-in diagnostics (adb shell touch /data/local/tmp/keep_debuggable or setprop persist.debug.phh.keep_debuggable 1, then reboot) keeps the userdebug ro.debuggable=1 so adb root and JDWP work
++    if [ "$(getprop persist.sys.phh.keep_debuggable)" = 1 ] || [ "$(getprop persist.debug.phh.keep_debuggable)" = 1 ] || [ -e /data/local/tmp/keep_debuggable ]; then
++        # the vendor boot image already starts with ro.debuggable=0 (first value wins), so turn it on and restart adbd so that adb root works
++        resetprop_phh ro.debuggable 1
++        setprop ctl.restart adbd
++    else
++        resetprop_phh ro.debuggable 0
++    fi
+     resetprop_phh ro.secure 1
+     resetprop_phh ro.build.type user
+     resetprop_phh ro.product.build.type user
+diff --git a/vndk.rc b/vndk.rc
+index 2f56680..7796847 100644
+--- a/vndk.rc
++++ b/vndk.rc
+@@ -9,6 +9,7 @@ on post-fs
+ on property:vold.decrypt=trigger_restart_framework
+     exec - root -- /system/bin/phh-on-data.sh
+ 
++
+ on early-boot
+     exec - root -- /system/bin/phh-on-data.sh
+ 
+-- 
+2.43.0
+

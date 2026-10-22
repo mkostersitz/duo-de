@@ -1,0 +1,73 @@
+From 2ccc7d94acccf9416641b7d140d71b0a66211dd0 Mon Sep 17 00:00:00 2001
+From: Mike Kostersitz <mkostersitz@mac.com>
+Date: Thu, 22 Oct 2026 21:54:30 +0000
+Subject: [PATCH] Replace the AOSP camera app with Surface Camera and grant it
+ its runtime permissions
+
+The Duo's own SurfaceCamera (vendor partition) handles every standard camera intent, including the secure ones used from the lock screen, and now
+works on this system. Install a default-permissions file for it (camera, microphone, photos and videos) and let that module override Camera2, so the
+AOSP camera is not in the image and Surface Camera is the only handler and therefore the default, instead of the intent chooser that appeared with two
+camera apps installed.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ base.mk                                           |  2 ++
+ surface-sdk/Android.bp                            |  9 +++++++++
+ surface-sdk/default-permissions-surfacecamera.xml | 15 +++++++++++++++
+ 3 files changed, 26 insertions(+)
+ create mode 100644 surface-sdk/default-permissions-surfacecamera.xml
+
+diff --git a/base.mk b/base.mk
+index 4c3aa5c..93fa436 100644
+--- a/base.mk
++++ b/base.mk
+@@ -275,6 +275,8 @@ PRODUCT_PACKAGES += \
+ 
+ PRODUCT_BOOT_JARS_EXTRA += com.microsoft.device
+ 
++PRODUCT_PACKAGES += default-permissions-surfacecamera.xml
++
+ PRODUCT_PACKAGES += \
+ 	com.microsoft.device \
+ 	com.microsoft.device.xml
+diff --git a/surface-sdk/Android.bp b/surface-sdk/Android.bp
+index d573e5a..2a9391e 100644
+--- a/surface-sdk/Android.bp
++++ b/surface-sdk/Android.bp
+@@ -33,3 +33,12 @@ prebuilt_etc {
+     src: "com.microsoft.device.xml",
+     sub_dir: "permissions",
+ }
++
++// Surface Camera (vendor partition) replaces the AOSP camera app: it handles every standard camera intent, so once Camera2 is gone it is the only
++// handler and therefore the default. This file also grants its runtime permissions on first boot; "overrides" drops Camera2 from the image.
++prebuilt_etc {
++    name: "default-permissions-surfacecamera.xml",
++    src: "default-permissions-surfacecamera.xml",
++    sub_dir: "default-permissions",
++    overrides: ["Camera2"],
++}
+diff --git a/surface-sdk/default-permissions-surfacecamera.xml b/surface-sdk/default-permissions-surfacecamera.xml
+new file mode 100644
+index 0000000..6a1012d
+--- /dev/null
++++ b/surface-sdk/default-permissions-surfacecamera.xml
+@@ -0,0 +1,15 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++    Runtime permissions granted to Surface Camera (SurfaceCamera, vendor partition) on first boot, as the stock Surface Duo ROM does, so a fresh
++    install starts without permission prompts. Location, notifications and contacts are not granted (geotagging is off by default in the app).
++-->
++<exceptions>
++    <exception package="com.microsoft.surface.camera.v2">
++        <permission name="android.permission.CAMERA" fixed="false" />
++        <permission name="android.permission.RECORD_AUDIO" fixed="false" />
++        <permission name="android.permission.READ_MEDIA_IMAGES" fixed="false" />
++        <permission name="android.permission.READ_MEDIA_VIDEO" fixed="false" />
++        <permission name="android.permission.READ_EXTERNAL_STORAGE" fixed="false" />
++        <permission name="android.permission.WRITE_EXTERNAL_STORAGE" fixed="false" />
++    </exception>
++</exceptions>
+-- 
+2.43.0
+

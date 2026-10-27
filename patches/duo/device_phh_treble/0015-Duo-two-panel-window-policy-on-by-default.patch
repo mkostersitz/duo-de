@@ -1,0 +1,28 @@
+From 89a332c67e28c0fd873db42926c205c1b7b32b20 Mon Sep 17 00:00:00 2001
+From: Michael Kostersitz <mkostersitz@mac.com>
+Date: Tue, 27 Oct 2026 18:25:45 +0000
+Subject: [PATCH] Duo: two panel window policy on by default
+
+Apps otherwise open spanned over both screens, and so does setup. Only takes effect on the Duo; persist.sys.phh.duo.panels=0 turns it off.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ system.prop | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/system.prop b/system.prop
+index 703b5e8..31d2cdd 100644
+--- a/system.prop
++++ b/system.prop
+@@ -55,4 +55,6 @@ ro.config.media_vol_default=8
+ 
+ # surface duo stuff
+ persist.sys.thain.duo.enable_settings_icons=1
+-persist.sys.thain.duo.app_hinting=0
+\ No newline at end of file
++persist.sys.thain.duo.app_hinting=0
++# two panel window policy (only takes effect on the Duo): apps open on one screen, setup is not spread over the hinge
++persist.sys.phh.duo.panels=1
+-- 
+2.43.0
+

@@ -1,0 +1,25 @@
+From f9fb28684d75861a12ae095fe4a7d7dc9c31d66e Mon Sep 17 00:00:00 2001
+From: Michael Kostersitz <mkostersitz@mac.com>
+Date: Tue, 27 Oct 2026 23:23:44 +0000
+Subject: [PATCH] Duo: start every SIM on the most permissive network mode
+
+Without ro.telephony.default_network the preferred network type of a new SIM is mode 0 (GSM/WCDMA preferred), which restricts some SIMs. Use mode 33 (NR/LTE/TDSCDMA/CDMA/EvDo/GSM/WCDMA), the last entry of the Preferred network type list, for both slots.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ system.prop | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/system.prop b/system.prop
+index c8dc908..bf7022f 100644
+--- a/system.prop
++++ b/system.prop
+@@ -62,3 +62,5 @@ persist.sys.phh.duo.panels=1
+ persist.dbg.volte_avail_ovr=1
+ persist.dbg.wfc_avail_ovr=1
+ persist.dbg.allow_ims_off=1
++# SIM: start every SIM on the most permissive network mode (NR/LTE/TDSCDMA/CDMA/EvDo/GSM/WCDMA, 33) instead of the WCDMA preferred default (0), one entry per slot (dsds)
++ro.telephony.default_network=33,33
+-- 
+2.43.0
+

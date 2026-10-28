@@ -1,33 +1,33 @@
-From af8b3e3a58739650079a27f6a285c3fe7a8b10b5 Mon Sep 17 00:00:00 2001
+From 9e24941e893d27269461bf1eceec8b48b8136b42 Mon Sep 17 00:00:00 2001
 From: Michael Kostersitz <mkostersitz@mac.com>
-Date: Wed, 28 Oct 2026 14:59:54 +0000
-Subject: [PATCH] Duo: ship the Qualcomm IMS package as a static overlay
- instead of a product overlay config
+Date: Wed, 28 Oct 2026 16:59:20 +0000
+Subject: [PATCH] Duo: enable the Qualcomm IMS package from the first boot with
+ a static overlay
 
-The product overlay config added in the previous change replaces the defaults of every overlay in /product/overlay: android.gsi.overlay and the other GSI overlays were no longer enabled (WebView provider list, default theme), so Google sign-in crashed with No WebView installed and the theme turned light. Drop it and ship a static overlay that sets config_ims_mmtel_package for com.android.phone, enabled from the first boot, touching nothing else.
+Telephony reads config_ims_mmtel_package at boot, and the Treble app only enables its non static cafims_telephony overlay after the first boot, so IMS needed a reboot on a clean flash. Ship a static overlay that sets config_ims_mmtel_package to org.codeaurora.ims for com.android.phone, enabled from the first boot.
+
+A product overlay config (/product/overlay/config/config.xml) must not be used for this: it replaces the defaults of every overlay in /product/overlay and disables android.gsi.overlay (WebView provider list, default theme).
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---
- base.mk                                          | 2 +-
+ base.mk                                          | 2 ++
  duo-overlays/DuoImsOverlay/Android.bp            | 7 +++++++
  duo-overlays/DuoImsOverlay/AndroidManifest.xml   | 6 ++++++
  duo-overlays/DuoImsOverlay/res/values/config.xml | 4 ++++
- files/product-overlay-config.xml                 | 6 ------
- 5 files changed, 18 insertions(+), 7 deletions(-)
+ 4 files changed, 19 insertions(+)
  create mode 100644 duo-overlays/DuoImsOverlay/Android.bp
  create mode 100644 duo-overlays/DuoImsOverlay/AndroidManifest.xml
  create mode 100644 duo-overlays/DuoImsOverlay/res/values/config.xml
- delete mode 100644 files/product-overlay-config.xml
 
 diff --git a/base.mk b/base.mk
-index ea9450f..f8bcb5f 100644
+index b4b1543..f8bcb5f 100644
 --- a/base.mk
 +++ b/base.mk
-@@ -306,4 +306,4 @@ $(call inherit-product-if-exists, vendor/surface/prebuilts/bootanimation/bootani
+@@ -305,3 +305,5 @@ PRODUCT_COPY_FILES += \
+ $(call inherit-product-if-exists, vendor/surface/prebuilts/bootanimation/bootanimation.mk)
  
  PRODUCT_PACKAGES += default-permissions-surfacecamera.xml
- 
--PRODUCT_COPY_FILES += device/phh/treble/files/product-overlay-config.xml:$(TARGET_COPY_OUT_PRODUCT)/overlay/config/config.xml
++
 +PRODUCT_PACKAGES += DuoImsOverlay
 diff --git a/duo-overlays/DuoImsOverlay/Android.bp b/duo-overlays/DuoImsOverlay/Android.bp
 new file mode 100644
@@ -64,18 +64,6 @@ index 0000000..ddf685d
 +<resources>
 +    <string name="config_ims_mmtel_package">org.codeaurora.ims</string>
 +</resources>
-diff --git a/files/product-overlay-config.xml b/files/product-overlay-config.xml
-deleted file mode 100644
-index 3913bce..0000000
---- a/files/product-overlay-config.xml
-+++ /dev/null
-@@ -1,6 +0,0 @@
--<?xml version="1.0" encoding="utf-8"?>
--<!-- The Treble app enables the telephony IMS overlay that fits the radio at boot, which only takes effect after a
--     reboot. On the Duo (Qualcomm IMS) enable it from the first boot; it stays mutable, the app still manages it. -->
--<config>
--    <overlay package="me.phh.treble.overlay.cafims_telephony" enabled="true" mutable="true" />
--</config>
 -- 
 2.43.0
 

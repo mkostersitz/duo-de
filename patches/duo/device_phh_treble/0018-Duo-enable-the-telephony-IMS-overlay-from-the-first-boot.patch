@@ -1,0 +1,39 @@
+From 3198b98a4391f2129a3c1d3fd3fced6161268bc9 Mon Sep 17 00:00:00 2001
+From: Michael Kostersitz <mkostersitz@mac.com>
+Date: Wed, 28 Oct 2026 00:10:46 +0000
+Subject: [PATCH] Duo: enable the telephony IMS overlay from the first boot
+
+The Treble app enables the IMS overlay that fits the radio only after the first boot has completed, and the telephony stack reads its IMS configuration at boot, so IMS needed a reboot. Ship the Qualcomm (CAF) IMS overlay enabled by default through the product overlay config; it stays mutable so the app can still change it.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ base.mk                          | 2 ++
+ files/product-overlay-config.xml | 6 ++++++
+ 2 files changed, 8 insertions(+)
+ create mode 100644 files/product-overlay-config.xml
+
+diff --git a/base.mk b/base.mk
+index b4b1543..ea9450f 100644
+--- a/base.mk
++++ b/base.mk
+@@ -305,3 +305,5 @@ PRODUCT_COPY_FILES += \
+ $(call inherit-product-if-exists, vendor/surface/prebuilts/bootanimation/bootanimation.mk)
+ 
+ PRODUCT_PACKAGES += default-permissions-surfacecamera.xml
++
++PRODUCT_COPY_FILES += device/phh/treble/files/product-overlay-config.xml:$(TARGET_COPY_OUT_PRODUCT)/overlay/config/config.xml
+diff --git a/files/product-overlay-config.xml b/files/product-overlay-config.xml
+new file mode 100644
+index 0000000..3913bce
+--- /dev/null
++++ b/files/product-overlay-config.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- The Treble app enables the telephony IMS overlay that fits the radio at boot, which only takes effect after a
++     reboot. On the Duo (Qualcomm IMS) enable it from the first boot; it stays mutable, the app still manages it. -->
++<config>
++    <overlay package="me.phh.treble.overlay.cafims_telephony" enabled="true" mutable="true" />
++</config>
+-- 
+2.43.0
+

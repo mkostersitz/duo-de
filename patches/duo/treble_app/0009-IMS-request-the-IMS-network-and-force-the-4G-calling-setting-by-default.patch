@@ -1,0 +1,57 @@
+From 61e767b72147ff780997df2acc1d44a7c0f0e04a Mon Sep 17 00:00:00 2001
+From: Michael Kostersitz <mkostersitz@mac.com>
+Date: Wed, 28 Oct 2026 00:10:46 +0000
+Subject: [PATCH] IMS: request the IMS network and force the 4G calling setting
+ by default
+
+Qualcomm IMS needs both: nothing else asks for the IMS network, so the IMS data connection never came up until the user switched Request IMS network on in this app. Default both switches to on (preference default and the code defaults), so a fresh install needs no manual step. The user can still switch them off.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ app/src/main/java/me/phh/treble/app/Ims.kt | 4 ++--
+ app/src/main/res/xml/pref_ims.xml          | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/me/phh/treble/app/Ims.kt b/app/src/main/java/me/phh/treble/app/Ims.kt
+index 1dc9880..0f607ec 100644
+--- a/app/src/main/java/me/phh/treble/app/Ims.kt
++++ b/app/src/main/java/me/phh/treble/app/Ims.kt
+@@ -37,7 +37,7 @@ object Ims: EntryStartup {
+ 
+         when(key) {
+             ImsSettings.requestNetwork -> {
+-                val value = sp.getBoolean(key, false)
++                val value = sp.getBoolean(key, true)
+                 if(value) {
+                     val nwRequest = NetworkRequest.Builder()
+                             .addCapability(NetworkCapabilities.NET_CAPABILITY_IMS)
+@@ -52,7 +52,7 @@ object Ims: EntryStartup {
+                 }
+             }
+             ImsSettings.forceEnableSettings -> {
+-                val value = if(sp.getBoolean(key, false)) "1" else "0"
++                val value = if(sp.getBoolean(key, true)) "1" else "0"
+                 Misc.safeSetprop("persist.dbg.volte_avail_ovr", value)
+                 Misc.safeSetprop("persist.dbg.wfc_avail_ovr", value)
+                 Misc.safeSetprop("persist.dbg.allow_ims_off", value)
+diff --git a/app/src/main/res/xml/pref_ims.xml b/app/src/main/res/xml/pref_ims.xml
+index 3c5d646..15b09fe 100644
+--- a/app/src/main/res/xml/pref_ims.xml
++++ b/app/src/main/res/xml/pref_ims.xml
+@@ -6,11 +6,11 @@
+     <Preference android:title="Download and install IMS APK"
+         android:key="key_ims_install_apn" />
+     <SwitchPreference
+-        android:defaultValue="false"
++        android:defaultValue="true"
+         android:key="key_ims_request_network"
+         android:title="Request IMS network" />
+     <SwitchPreference
+-        android:defaultValue="false"
++        android:defaultValue="true"
+         android:key="key_ims_force_enable_setting"
+         android:title="Force the presence of 4G Calling setting" />
+ </PreferenceScreen>
+-- 
+2.43.0
+

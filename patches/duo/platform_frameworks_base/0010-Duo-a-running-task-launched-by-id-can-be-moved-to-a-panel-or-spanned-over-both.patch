@@ -1,0 +1,124 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Michael Kostersitz <mkostersitz@mac.com>
+Date: Fri, 13 Nov 2026 15:32:21 +0000
+Subject: [PATCH] Duo: a running task launched by id can be moved to a panel or
+ spanned over both
+
+With the two panel window policy a task stays in the task area it was created in. Let a launcher move it:
+when a task is launched by id (startActivityFromRecents) and its launch options name the task container of a
+panel, or the default (spanned) task container, the task is reparented there before it is brought to front.
+Adds DuoPanelGeometry.panelTasksFeatureId() and spannedTasksFeatureId() so a launcher does not have to know the
+vendor feature ids.
+
+A task that is already running is launched by id through ActivityTaskSupervisor.findTaskToMoveToFront, which only
+reaches getOrCreateRootTask when freeform launch bounds are set, so the move is done in findTaskToMoveToFront itself
+(the getOrCreateRootTask call covers the case a task is restored from recents).
+
+Used by the Launcher3 drag and drop that spans or moves an app.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Change-Id: I4533b1541483cde15fb4652a4e80bab9192bc11f
+---
+ .../internal/policy/DuoPanelGeometry.java     | 13 +++++++++++
+ .../server/wm/ActivityTaskSupervisor.java     |  6 +++++
+ .../wm/DuoDisplayAreaPolicyProvider.java      | 23 +++++++++++++++++++
+ .../server/wm/RootWindowContainer.java        |  1 +
+ 4 files changed, 43 insertions(+)
+
+diff --git a/core/java/com/android/internal/policy/DuoPanelGeometry.java b/core/java/com/android/internal/policy/DuoPanelGeometry.java
+index b91ad189a9f1..ff55b7075766 100644
+--- a/core/java/com/android/internal/policy/DuoPanelGeometry.java
++++ b/core/java/com/android/internal/policy/DuoPanelGeometry.java
+@@ -46,6 +46,19 @@ public final class DuoPanelGeometry {
+     /** Index of the hinge band in the array returned by {@link #layout}. */
+     public static final int HINGE = 2;
+ 
++    /**
++     * The task display area feature id of the task container of the given panel (the vendor feature ids the two panel
++     * policy registers); launchers pass it with ActivityOptions#setLaunchTaskDisplayAreaFeatureId.
++     */
++    public static int panelTasksFeatureId(int panel) {
++        return android.window.DisplayAreaOrganizer.FEATURE_VENDOR_FIRST + 2 + 2 * panel;
++    }
++
++    /** The task display area feature id of the spanned area: tasks there cover both panels and the hinge. */
++    public static int spannedTasksFeatureId() {
++        return android.window.DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER;
++    }
++
+     /** Physical panel width, hinge band width and panel height of a device, in natural orientation. */
+     public static final class Spec {
+         public final int panel;
+diff --git a/services/core/java/com/android/server/wm/ActivityTaskSupervisor.java b/services/core/java/com/android/server/wm/ActivityTaskSupervisor.java
+index ac8b92854e68..50d1cce8c4ac 100644
+--- a/services/core/java/com/android/server/wm/ActivityTaskSupervisor.java
++++ b/services/core/java/com/android/server/wm/ActivityTaskSupervisor.java
+@@ -1678,6 +1678,12 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
+             chain.collect(task);
+             reason = reason + " findTaskToMoveToFront";
+             boolean reparented = false;
++            // Duo two panel policy: a launcher (drag and drop) may name the task area the task goes to. Launch bounds are
++            // not set for that, so the getOrCreateRootTask() below is not reached.
++            if (DuoDisplayAreaPolicyProvider.moveToRequestedArea(task, options)) {
++                currentRootTask = task.getRootTask();
++                reparented = true;
++            }
+             if (task.isResizeable() && canUseActivityOptionsLaunchBounds(options)) {
+                 Task targetRootTask =
+                         mRootWindowContainer.getOrCreateRootTask(null, options, task, ON_TOP);
+diff --git a/services/core/java/com/android/server/wm/DuoDisplayAreaPolicyProvider.java b/services/core/java/com/android/server/wm/DuoDisplayAreaPolicyProvider.java
+index 6ef38240524f..cbf8e9b28066 100644
+--- a/services/core/java/com/android/server/wm/DuoDisplayAreaPolicyProvider.java
++++ b/services/core/java/com/android/server/wm/DuoDisplayAreaPolicyProvider.java
+@@ -20,6 +20,7 @@ import static android.window.DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER
+ import static android.window.DisplayAreaOrganizer.FEATURE_VENDOR_FIRST;
+ 
+ import android.annotation.Nullable;
++import android.app.ActivityOptions;
+ import android.content.Intent;
+ import android.content.res.Configuration;
+ import android.graphics.Rect;
+@@ -147,6 +148,28 @@ public class DuoDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider
+         });
+     }
+ 
++    /**
++     * A running task launched by id (Launcher3 drag and drop) that names a task area in its launch options moves
++     * there (returns true when it was moved): the spanned area (the default task area) spans it over both panels, either panel task area moves it
++     * to that screen. Anything else keeps the platform choice.
++     */
++    static boolean moveToRequestedArea(@Nullable Task task, @Nullable ActivityOptions options) {
++        if (!sActive || options == null) return false;
++        final Task root = task != null ? task.getRootTask() : null;
++        if (root == null || !root.isActivityTypeStandard()) return false;
++        final int featureId = options.getLaunchTaskDisplayAreaFeatureId();
++        if (featureId != FEATURE_PANEL_0_TASKS && featureId != FEATURE_PANEL_1_TASKS
++                && featureId != FEATURE_DEFAULT_TASK_CONTAINER) {
++            return false;
++        }
++        final TaskDisplayArea target = root.mDisplayContent.getItemFromTaskDisplayAreas(
++                tda -> tda.mFeatureId == featureId ? tda : null);
++        if (target == null || root.getDisplayArea() == target) return false;
++        Slog.i(TAG, "Moving " + root + " to " + target.getRootDisplayArea().getName());
++        root.reparent(target, true /* onTop */);
++        return true;
++    }
++
+     /**
+      * The panel a launch should go to, from where the user tapped. A launcher passes the on-screen rectangle of the
+      * tapped icon as the intent's source bounds; the panel containing it gets the new task, so an icon on the left
+diff --git a/services/core/java/com/android/server/wm/RootWindowContainer.java b/services/core/java/com/android/server/wm/RootWindowContainer.java
+index 3ebfa6bf97fe..b087f769d802 100644
+--- a/services/core/java/com/android/server/wm/RootWindowContainer.java
++++ b/services/core/java/com/android/server/wm/RootWindowContainer.java
+@@ -3170,6 +3170,7 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
+                         MATCH_ATTACHED_TASK_OR_RECENT_TASKS_AND_RESTORE, options, onTop);
+                 options.setLaunchTaskId(candidateTaskId);
+                 if (canLaunchOnDisplay(r, task)) {
++                    DuoDisplayAreaPolicyProvider.moveToRequestedArea(task, options);
+                     return task.getRootTask();
+                 }
+             }
+-- 
+2.43.0
+

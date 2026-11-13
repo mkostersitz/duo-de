@@ -1,0 +1,325 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Michael Kostersitz <mkostersitz@mac.com>
+Date: Fri, 13 Nov 2026 19:47:39 +0000
+Subject: [PATCH] Duo: span or move an app by pulling it up from the bottom bar
+ and dropping it
+
+Same gesture as on the stock Surface Duo: pull an app up from the bottom bar, drag it towards the hinge or the
+other screen and let go. Dropped on the hinge zone it spans over both screens; dropped on the far screen it moves
+there; an app that is spanned and dropped on one screen moves to it; dropped anywhere else the app stays and goes
+back to where it was (a plain pull up is still the home / recents gesture).
+
+The zone is the hinge plus about 60 dp past the far edge and about 20 dp short on the app's own side, and the
+finger has to rest for up to ~0.5 s towards the edge of the zone (the rule measured on a stock Duo 1 with
+injected drags). A haptic click is issued once when resting inside the zone, and logged as "DuoDrag armed".
+
+The decision lives in the new DuoDragDrop utility and is hooked into OtherActivityInputConsumer, so it applies to
+the Launcher3 touch service whichever launcher is home. The size of the whole display comes from DisplayController
+because the touch service window follows the focused screen. The app is dropped by cancelling the gesture and then
+launching its task by id with the task container of the target (spanned area or panel) in the launch options,
+which needs the frameworks_base change that lets a running task be moved by those options.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Change-Id: Ie032a279bae4f0c6dd99da7d8c3f17c75a435497
+---
+ .../OtherActivityInputConsumer.java           | 140 +++++++++++++++++-
+ .../android/launcher3/util/DuoDragDrop.java   |  94 ++++++++++++
+ 2 files changed, 230 insertions(+), 4 deletions(-)
+ create mode 100644 src/com/android/launcher3/util/DuoDragDrop.java
+
+diff --git a/quickstep/src/com/android/quickstep/inputconsumers/OtherActivityInputConsumer.java b/quickstep/src/com/android/quickstep/inputconsumers/OtherActivityInputConsumer.java
+index 65a76e501a..f384e1f08d 100644
+--- a/quickstep/src/com/android/quickstep/inputconsumers/OtherActivityInputConsumer.java
++++ b/quickstep/src/com/android/quickstep/inputconsumers/OtherActivityInputConsumer.java
+@@ -35,6 +35,12 @@ import android.content.Context;
+ import android.content.ContextWrapper;
+ import android.content.Intent;
+ import android.graphics.PointF;
++import android.app.ActivityOptions;
++import android.os.VibrationEffect;
++import android.os.Vibrator;
++import com.android.launcher3.util.DuoDragDrop;
++import com.android.launcher3.util.DuoPanels;
++import com.android.systemui.shared.system.ActivityManagerWrapper;
+ import android.util.Log;
+ import android.view.MotionEvent;
+ import android.view.VelocityTracker;
+@@ -106,6 +112,13 @@ public class OtherActivityInputConsumer extends ContextWrapper implements InputC
+     private final boolean mIsDeferredDownTarget;
+     private final boolean mIsDeferredDownDevice;
+     private final PointF mDownPos = new PointF();
++
++    // Duo: pull an app up from the bottom bar, drag it to the hinge or the other screen and let go to span or move it.
++    private final Context mDuoContext;
++    private final PointF mDuoRestPos = new PointF();
++    private long mDuoRestSince;
++    private boolean mDuoSpanArmed;
++    private Runnable mDuoPendingDrop;
+     private final PointF mLastPos = new PointF();
+     private int mActivePointerId = INVALID_POINTER_ID;
+ 
+@@ -155,6 +168,7 @@ public class OtherActivityInputConsumer extends ContextWrapper implements InputC
+                 R.dimen.motion_pause_detector_min_displacement_from_app);
+         mOnCompleteCallback = onCompleteCallback;
+         mVelocityTracker = VelocityTracker.obtain();
++        mDuoContext = base;
+         mInputMonitorCompat = inputMonitorCompat;
+         mInputEventReceiver = inputEventReceiver;
+ 
+@@ -252,6 +266,7 @@ public class OtherActivityInputConsumer extends ContextWrapper implements InputC
+                 mActivePointerId = ev.getPointerId(0);
+                 mDownPos.set(ev.getX(), ev.getY());
+                 mLastPos.set(mDownPos);
++                duoDragDown(ev);
+ 
+                 // Start the window animation on down to give more time for launcher to draw if the
+                 // user didn't start the gesture over the back button
+@@ -294,6 +309,7 @@ public class OtherActivityInputConsumer extends ContextWrapper implements InputC
+                     break;
+                 }
+                 mLastPos.set(ev.getX(pointerIndex), ev.getY(pointerIndex));
++                duoDragMove(ev);
+                 float displacement = getDisplacement(ev);
+                 float displacementX = mLastPos.x - mDownPos.x;
+                 float displacementY = mLastPos.y - mDownPos.y;
+@@ -505,10 +521,18 @@ public class OtherActivityInputConsumer extends ContextWrapper implements InputC
+                         : mNavBarPosition.isLeftEdge()
+                                 ? -velocityXPxPerMs
+                                 : velocityYPxPerMs;
+-                mInteractionHandler.updateDisplacement(getDisplacement(ev) - mStartDisplacement);
+-                mInteractionHandler.onGestureEnded(velocityPxPerMs,
+-                        new PointF(velocityXPxPerMs, velocityYPxPerMs),
+-                        Math.abs(mDownPos.x - mLastPos.x) > mTouchSlop);
++                final Runnable duoDrop = duoDropAction(ev, velocityYPxPerMs);
++                if (duoDrop != null) {
++                    // Duo: the app was dropped on the hinge or the other screen, it goes back to where it was and
++                    // is then spanned or moved once the gesture animation is done.
++                    mDuoPendingDrop = duoDrop;
++                    mInteractionHandler.onGestureCancelled();
++                } else {
++                    mInteractionHandler.updateDisplacement(getDisplacement(ev) - mStartDisplacement);
++                    mInteractionHandler.onGestureEnded(velocityPxPerMs,
++                            new PointF(velocityXPxPerMs, velocityYPxPerMs),
++                            Math.abs(mDownPos.x - mLastPos.x) > mTouchSlop);
++                }
+             }
+         } else {
+             // Since we start touch tracking on DOWN, we may reach this state without actually
+@@ -580,6 +604,114 @@ public class OtherActivityInputConsumer extends ContextWrapper implements InputC
+         mInteractionHandler = null;
+         cleanupAfterGesture();
+         mOnCompleteCallback.accept(this);
++        final Runnable drop = mDuoPendingDrop;
++        mDuoPendingDrop = null;
++        if (drop != null) drop.run();
++    }
++
++    private void duoDragDown(MotionEvent ev) {
++        mDuoRestPos.set(ev.getRawX(), ev.getRawY());
++        mDuoRestSince = ev.getEventTime();
++        mDuoSpanArmed = false;
++    }
++
++    /** The two panel rects of the whole display (not of the window this service happens to be sized to), or null. */
++    private int[][] duoHalves() {
++        final android.graphics.Point real = duoRealSize();
++        return DuoPanels.halves(real.x, real.y);
++    }
++
++    private long duoRestMs(MotionEvent ev) {
++        return ev.getEventTime() - mDuoRestSince;
++    }
++
++    /** Tracks how long the finger has rested, and ticks once when resting where a drop would span the app. */
++    private void duoDragMove(MotionEvent ev) {
++        final float density = mDuoContext.getResources().getDisplayMetrics().density;
++        if (Math.hypot(ev.getRawX() - mDuoRestPos.x, ev.getRawY() - mDuoRestPos.y)
++                > DuoDragDrop.REST_DP * density) {
++            mDuoRestPos.set(ev.getRawX(), ev.getRawY());
++            mDuoRestSince = ev.getEventTime();
++        }
++        final android.util.DisplayMetrics dm = mDuoContext.getResources().getDisplayMetrics();
++        final int[][] halves = duoHalves();
++        if (halves == null || !mPassedWindowMoveSlop) return;
++        final boolean fromRight = mDuoFromRight();
++        final boolean inZone = DuoDragDrop.inSpanZone(halves, fromRight, ev.getRawX(), density)
++                && duoRestMs(ev) >= DuoDragDrop.requiredDwellMs(halves, ev.getRawX(), density);
++        if (inZone && !mDuoSpanArmed) {
++            android.util.Log.d("DuoDrag", "armed: click at x=" + ev.getRawX() + " rest=" + duoRestMs(ev));
++            final Vibrator v = mDuoContext.getSystemService(Vibrator.class);
++            if (v != null) v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK));
++        }
++        mDuoSpanArmed = inZone;
++    }
++
++    private int duoWidth() {
++        return duoRealSize().x;
++    }
++
++    /** The size of the whole display, whatever the window this service runs in is sized to. */
++    private android.graphics.Point duoRealSize() {
++        final android.graphics.Point real = new android.graphics.Point(
++                com.android.launcher3.util.DisplayController.INSTANCE.get(mDuoContext).getInfo().currentSize);
++        return real;
++    }
++
++    private boolean mDuoFromRight() {
++        final android.graphics.Rect b = mGestureState.getRunningTask() != null
++                && mGestureState.getRunningTask().getLegacyBaseTask() != null
++                ? mGestureState.getRunningTask().getLegacyBaseTask().configuration.windowConfiguration.getBounds()
++                : null;
++        return b != null && b.centerX() > duoWidth() / 2;
++    }
++
++    /**
++     * The span / move action to run once the gesture animation is done, or null when the gesture was no drag-and-drop
++     * of an app (not a Duo, no app, a fling, too short or too long a pull, or dropped where it stays).
++     */
++    private Runnable duoDropAction(MotionEvent ev, float velocityYPxPerMs) {
++        final android.util.DisplayMetrics dm = mDuoContext.getResources().getDisplayMetrics();
++        final int[][] halves = duoHalves();
++        final com.android.quickstep.TopTaskTracker.CachedTaskInfo top = mGestureState.getRunningTask();
++        if (halves == null || top == null || top.isHomeTask() || top.isRecentsTask()
++                || top.getLegacyBaseTask() == null || top.getLegacyBaseTask().configuration == null) {
++            android.util.Log.d("DuoDrag", "no drop: halves=" + (halves != null) + " top=" + top
++                    + (top != null ? " home=" + top.isHomeTask() + " recents=" + top.isRecentsTask() : ""));
++            return null;
++        }
++        final float pull = mDownPos.y - mLastPos.y;
++        if (pull < 60 * dm.density || pull > 0.30f * dm.heightPixels || velocityYPxPerMs < -1.0f) {
++            android.util.Log.d("DuoDrag", "no drop: pull=" + pull + " vy=" + velocityYPxPerMs);
++            return null;
++        }
++        final android.graphics.Rect bounds = top.getLegacyBaseTask().configuration.windowConfiguration.getBounds();
++        final boolean spanned = bounds.width() > halves[0][2] - halves[0][0] + 10;
++        final float x = ev.getRawX();
++        final long rest = duoRestMs(ev);
++        final int decision = spanned
++                ? DuoDragDrop.decideForSpannedApp(halves, x, rest, dm.density)
++                : DuoDragDrop.decideForPanelApp(halves, bounds.centerX() > duoWidth() / 2, x, rest, dm.density);
++        android.util.Log.d("DuoDrag", "x=" + x + " rest=" + rest + " spanned=" + spanned + " bounds=" + bounds
++                + " decision=" + decision);
++        if (decision == DuoDragDrop.NONE) {
++            // Dropped where the app stays: it goes back to where it was, it does not open the recents list, when the
++            // finger was moved sideways (a plain pull up is the home / recents gesture).
++            return Math.abs(mLastPos.x - mDownPos.x) >= 60 * dm.density ? () -> { } : null;
++        }
++        final int taskId = top.getTaskId();
++        final int display = mGestureState.getDisplayId();
++        final int feature = decision == DuoDragDrop.SPAN
++                ? com.android.internal.policy.DuoPanelGeometry.spannedTasksFeatureId()
++                : com.android.internal.policy.DuoPanelGeometry.panelTasksFeatureId(
++                        decision == DuoDragDrop.MOVE_TO_LEFT ? 0 : 1);
++        return () -> {
++            final ActivityOptions opts = ActivityOptions.makeBasic();
++            opts.setLaunchDisplayId(display);
++            opts.setLaunchTaskDisplayAreaFeatureId(feature);
++            opts.setLaunchWindowingMode(android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN);
++            ActivityManagerWrapper.getInstance().startActivityFromRecents(taskId, opts);
++        };
+     }
+ 
+     private void removeListener() {
+diff --git a/src/com/android/launcher3/util/DuoDragDrop.java b/src/com/android/launcher3/util/DuoDragDrop.java
+new file mode 100644
+index 0000000000..5782f70265
+--- /dev/null
++++ b/src/com/android/launcher3/util/DuoDragDrop.java
+@@ -0,0 +1,94 @@
++/*
++ * Copyright (C) 2026 The Duo-DE Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.launcher3.util;
++
++/**
++ * Where a pulled-up app lands when the finger is lifted, as the stock Surface Duo decides it (measured on a stock
++ * Duo 1 with injected drags, see the Duo-DE gesture notes). Distances are in dp so the same rule serves both Duos:
++ * <ul>
++ *   <li>lifted on the app's own screen, more than {@link #MOVE_NEAR_DP} short of the hinge: the app stays;</li>
++ *   <li>between {@link #MOVE_NEAR_DP} and {@link #SPAN_NEAR_DP} short of the hinge: the app moves to the other
++ *       screen;</li>
++ *   <li>from {@link #SPAN_NEAR_DP} short of the hinge to {@link #SPAN_FAR_DP} past its far edge: the app spans both
++ *       screens, if the finger rested there (0 at the hinge centre, up to {@link #MAX_DWELL_MS} at the zone edge),
++ *       otherwise it moves to the other screen;</li>
++ *   <li>further on, or on the other screen: the app moves there.</li>
++ * </ul>
++ * A spanned app is the same turned round: lifted in the span zone it stays spanned, anywhere else it moves to the
++ * screen it was dropped on.
++ */
++public final class DuoDragDrop {
++    private DuoDragDrop() { }
++
++    public static final int NONE = 0;
++    public static final int MOVE_TO_LEFT = 1;
++    public static final int MOVE_TO_RIGHT = 2;
++    public static final int SPAN = 3;
++
++    /** The span zone starts this far short of the hinge, on the screen the app is on. */
++    public static final float SPAN_NEAR_DP = 20f;
++    /** The span zone ends this far past the hinge, on the other screen. */
++    public static final float SPAN_FAR_DP = 60f;
++    /** Lifted between this and SPAN_NEAR_DP short of the hinge the app already moves. */
++    public static final float MOVE_NEAR_DP = 60f;
++    /** Rest needed at the edge of the span zone; shorter towards the hinge centre. */
++    public static final long MAX_DWELL_MS = 480;
++    /** A finger that has moved less than this since the pause started is resting. */
++    public static final float REST_DP = 6f;
++
++    /** True when x is inside the span zone. {@code halves} is {@link DuoPanels#halves}. */
++    public static boolean inSpanZone(int[][] halves, boolean fromRight, float x, float density) {
++        final float left = halves[0][2];
++        final float right = halves[1][0];
++        // Left-origin frame: the app's own screen is on the low side.
++        final float u = fromRight ? left + right - x : x;
++        return u >= left - SPAN_NEAR_DP * density && u <= right + SPAN_FAR_DP * density;
++    }
++
++    /** The rest the finger needs at x for the app to span: none at the hinge centre, MAX_DWELL_MS at the zone edge. */
++    public static long requiredDwellMs(int[][] halves, float x, float density) {
++        final float centre = (halves[0][2] + halves[1][0]) / 2f;
++        final float half = (halves[1][0] - halves[0][2]) / 2f + SPAN_NEAR_DP * density;
++        return (long) (MAX_DWELL_MS * Math.min(1f, Math.abs(x - centre) / half));
++    }
++
++    /**
++     * What happens to an app on one screen, lifted at x.
++     *
++     * @param fromRight true when the app is on the right screen
++     */
++    public static int decideForPanelApp(int[][] halves, boolean fromRight, float x, long dwellMs, float density) {
++        final float left = halves[0][2];
++        final float right = halves[1][0];
++        final float u = fromRight ? left + right - x : x;     // left-origin frame
++        final int other = fromRight ? MOVE_TO_LEFT : MOVE_TO_RIGHT;
++        if (u < left - MOVE_NEAR_DP * density) return NONE;
++        if (u < left - SPAN_NEAR_DP * density) return other;
++        if (u <= right + SPAN_FAR_DP * density) {
++            return dwellMs >= requiredDwellMs(halves, x, density) ? SPAN : other;
++        }
++        return other;
++    }
++
++    /** What happens to a spanned app lifted at x: it stays in the span zone, else lands on the screen under x. */
++    public static int decideForSpannedApp(int[][] halves, float x, long dwellMs, float density) {
++        final float left = halves[0][2];
++        final float right = halves[1][0];
++        if (x >= left - SPAN_NEAR_DP * density && x <= right + SPAN_NEAR_DP * density) return NONE;
++        return x < left ? MOVE_TO_LEFT : MOVE_TO_RIGHT;
++    }
++}
+-- 
+2.43.0
+

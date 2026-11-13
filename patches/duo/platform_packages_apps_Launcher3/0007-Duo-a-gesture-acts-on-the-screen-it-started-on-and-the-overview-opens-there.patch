@@ -1,0 +1,266 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Michael Kostersitz <mkostersitz@mac.com>
+Date: Fri, 13 Nov 2026 19:47:39 +0000
+Subject: [PATCH] Duo: a gesture acts on the screen it started on, and the
+ overview opens there
+
+On a Duo with the two panel window policy a gesture made on one screen has to act on that screen: its app (or home),
+whichever screen holds window focus, and a recents list opened by the gesture lays out on that screen.
+
+- TouchInteractionService remembers which screen the gesture started on (DuoPanels) and restricts the running task
+  to the one on that screen (TopTaskTracker.CachedTaskInfo.restrictedToPanel).
+- With home on one screen and an app on the other Launcher stays resumed, which made every gesture a launcher gesture;
+  a gesture on the screen that runs an app now goes to that app (InputConsumerUtils).
+- The overview is laid out for, and sized to, the screen the gesture started on.
+- The size of the whole display comes from DisplayController: the size of the touch service window follows the
+  screen that holds focus.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../quickstep/BaseContainerInterface.java     | 15 +++++++
+ .../android/quickstep/InputConsumerUtils.kt   | 27 +++++++++++-
+ .../com/android/quickstep/TopTaskTracker.java | 44 +++++++++++++++++++
+ .../quickstep/TouchInteractionService.java    | 11 +++++
+ .../android/quickstep/views/RecentsView.java  |  5 +++
+ src/com/android/launcher3/util/DuoPanels.java | 16 +++++++
+ 6 files changed, 116 insertions(+), 2 deletions(-)
+
+diff --git a/quickstep/src/com/android/quickstep/BaseContainerInterface.java b/quickstep/src/com/android/quickstep/BaseContainerInterface.java
+index 5733c69805..278c4323cc 100644
+--- a/quickstep/src/com/android/quickstep/BaseContainerInterface.java
++++ b/quickstep/src/com/android/quickstep/BaseContainerInterface.java
+@@ -59,6 +59,7 @@ import com.android.launcher3.taskbar.TaskbarInteractor;
+ import com.android.launcher3.taskbar.TaskbarUiState;
+ import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
+ import com.android.launcher3.util.DisplayController;
++import com.android.launcher3.util.DuoPanels;
+ import com.android.launcher3.util.WindowBounds;
+ import com.android.launcher3.views.ScrimColors;
+ import com.android.launcher3.views.ScrimColorsEvaluator;
+@@ -476,6 +477,12 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
+     public static void getTaskDimension(DeviceProfile dp, PointF out) {
+         out.x = dp.getDeviceProperties().getWidthPx();
+         out.y = dp.getDeviceProperties().getHeightPx();
++        int[] duoPanel = dp.getDeviceProperties().isTablet()
++                ? DuoPanels.overviewPanel((int) out.x, (int) out.y) : null;
++        if (duoPanel != null) {
++            // Duo: a task is as wide as the screen it runs on, not the spanned display
++            out.x = duoPanel[2] - duoPanel[0];
++        }
+         if (dp.getDeviceProperties().isTablet()
+                 && !dp.getTaskbarProfile().isTransientTaskbar()) {
+             out.y -= dp.getTaskbarProfile().getHeight();
+@@ -492,6 +499,14 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
+         int sideMargin = dp.getOverviewProfile().getGridSideMargin();
+ 
+         outRect.set(0, 0, dp.getDeviceProperties().getWidthPx(), dp.getDeviceProperties().getHeightPx());
++        int[] duoPanel = dp.getDeviceProperties().isTablet()
++                ? DuoPanels.overviewPanel(outRect.width(), outRect.height()) : null;
++        if (duoPanel != null) {
++            // Duo: the overview lives on the screen the gesture started on
++            outRect.set(duoPanel[0], duoPanel[1], duoPanel[2], duoPanel[3]);
++            outRect.inset(sideMargin, insets.top + topMargin, sideMargin, Math.max(insets.bottom, bottomMargin));
++            return;
++        }
+         outRect.inset(Math.max(insets.left, sideMargin), insets.top + topMargin,
+                 Math.max(insets.right, sideMargin), Math.max(insets.bottom, bottomMargin));
+     }
+diff --git a/quickstep/src/com/android/quickstep/InputConsumerUtils.kt b/quickstep/src/com/android/quickstep/InputConsumerUtils.kt
+index ece5b39bc6..ce8dacb1f2 100644
+--- a/quickstep/src/com/android/quickstep/InputConsumerUtils.kt
++++ b/quickstep/src/com/android/quickstep/InputConsumerUtils.kt
+@@ -25,6 +25,8 @@ import com.android.launcher3.statemanager.BaseState
+ import com.android.launcher3.statemanager.StatefulContainer
+ import com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar
+ import com.android.launcher3.taskbar.TaskbarManager
++import com.android.launcher3.util.DisplayController
++import com.android.launcher3.util.DuoPanels
+ import com.android.launcher3.util.LockedUserState.Companion.get
+ import com.android.quickstep.inputconsumers.AccessibilityInputConsumer
+ import com.android.quickstep.inputconsumers.AssistantInputConsumer
+@@ -561,10 +563,19 @@ object InputConsumerUtils {
+         // with shell-transitions, home is resumed during recents animation, so
+         // explicitly check against recents animation too.
+         // Home is always running and isn't resumed when home shows behind desktop.
++        // Duo: with home on one screen and an app on the other, Launcher stays resumed, but a gesture made on the screen
++        // that runs an app (the running task is already the one of the gesture's screen) is that app's gesture.
++        val duoGestureOnApp =
++            runningTask != null &&
++                !runningTask.isHomeTask &&
++                DisplayController.INSTANCE.get(context).info.currentSize.let {
++                    DuoPanels.overviewPanel(it.x, it.y) != null
++                }
+         val launcherResumedThroughShellTransition =
+             containerInterface.isResumed() &&
+                 !previousGestureState.isRecentsAnimationRunning &&
+-                !desktopState.shouldShowHomeBehindDesktop
++                !desktopState.shouldShowHomeBehindDesktop &&
++                !duoGestureOnApp
+ 
+         // If a task fragment within Launcher is resumed
+         val launcherChildActivityResumed =
+@@ -750,7 +761,19 @@ object InputConsumerUtils {
+             else "%sall overview focus conditions failed",
+             SUBSTRING_PREFIX,
+         )
+-        return if (hasWindowFocus || isPreviousGestureAnimatingToLauncher || isInLiveTileMode) {
++        // Duo: with an app focused on the other screen the launcher never has window focus, yet the screen the gesture
++        // started on shows home: it is the launcher's gesture, not "go home from an app".
++        val duoPanelShowsHome =
++            gestureState.runningTask?.isHomeTask == true &&
++                container.deviceProfile.deviceProperties.let {
++                    DuoPanels.overviewPanel(it.widthPx, it.heightPx) != null
++                }
++        return if (
++            hasWindowFocus ||
++                duoPanelShowsHome ||
++                isPreviousGestureAnimatingToLauncher ||
++                isInLiveTileMode
++        ) {
+             reasonString.append(
+                 "%soverview should have focus, using LauncherInputConsumer",
+                 SUBSTRING_PREFIX,
+diff --git a/quickstep/src/com/android/quickstep/TopTaskTracker.java b/quickstep/src/com/android/quickstep/TopTaskTracker.java
+index 62fd14c174..d8d0cd0247 100644
+--- a/quickstep/src/com/android/quickstep/TopTaskTracker.java
++++ b/quickstep/src/com/android/quickstep/TopTaskTracker.java
+@@ -467,6 +467,50 @@ public class TopTaskTracker extends ISplitScreenListener.Stub implements TaskSta
+             mActiveDeskId = activeDeskId;
+         }
+ 
++        /**
++         * Duo: the running task for a gesture that started on one screen is the topmost visible task on that screen,
++         * or the home task when the screen shows home, not the task that happens to hold focus on the other screen.
++         * Only possible with the plain task list; with shell top task tracking this returns itself.
++         *
++         * @param panel the {left, top, right, bottom} rect of the screen the gesture started on
++         */
++        public CachedTaskInfo restrictedToPanel(int[] panel) {
++            if (mAllCachedTasks == null || mAllCachedTasks.isEmpty() || mContext == null) {
++                return this;
++            }
++            TaskInfo chosen = null;
++            TaskInfo home = null;
++            // The cached list can hold stale visibility (a minimized task still reads visible): ask for fresh state
++            final java.util.Set<Integer> visibleIds = new java.util.HashSet<>();
++            final RunningTaskInfo[] fresh = TraceHelper.allowIpcs("duo.visibleTasks", () ->
++                    ActivityManagerWrapper.getInstance().getRunningTasks(false /* filterOnlyVisibleRecents */));
++            if (fresh != null) {
++                for (RunningTaskInfo r : fresh) {
++                    if (r.isVisible()) visibleIds.add(r.taskId);
++                }
++            }
++            for (TaskInfo t : mAllCachedTasks) {
++                if (TopTaskTracker.isHomeTask(t)) {
++                    if (home == null) home = t;
++                    continue;
++                }
++                if (!visibleIds.contains(t.taskId)) continue;
++                final android.graphics.Rect b = t.configuration.windowConfiguration.getBounds();
++                final int cx = b.centerX();
++                final boolean spans = b.width() > 1.5f * (panel[2] - panel[0]);
++                if (spans || (cx >= panel[0] && cx < panel[2])) {
++                    chosen = t;
++                    break;
++                }
++            }
++            if (chosen == null) chosen = home;
++            if (chosen == null || chosen == mTopTask) return this;
++            final List<TaskInfo> reordered = new java.util.ArrayList<>(mAllCachedTasks);
++            reordered.remove(chosen);
++            reordered.add(0, chosen);
++            return new CachedTaskInfo(reordered, mContext, mDisplayId, mActiveDeskId);
++        }
++
+         /**
+          * Returns the "base" task that is used the as the representative running task of the set
+          * of tasks initially provided.
+diff --git a/quickstep/src/com/android/quickstep/TouchInteractionService.java b/quickstep/src/com/android/quickstep/TouchInteractionService.java
+index 1cebd811f9..7a1ff49e1f 100644
+--- a/quickstep/src/com/android/quickstep/TouchInteractionService.java
++++ b/quickstep/src/com/android/quickstep/TouchInteractionService.java
+@@ -97,6 +97,7 @@ import com.android.launcher3.taskbar.bubbles.BubbleControllers;
+ import com.android.launcher3.testing.TestLogging;
+ import com.android.launcher3.testing.shared.TestProtocol;
+ import com.android.launcher3.util.DisplayController;
++import com.android.launcher3.util.DuoPanels;
+ import com.android.launcher3.util.LockedUserState;
+ import com.android.launcher3.util.MSDLPlayerWrapper;
+ import com.android.launcher3.util.NavigationMode;
+@@ -1116,6 +1117,9 @@ public class TouchInteractionService extends Service {
+         }
+         if (action == ACTION_DOWN || isHoverActionWithoutConsumer) {
+             taskAnimationManager.notifyNewGestureStart();
++            // Duo: remember the screen the gesture starts on, the overview opens there
++            DuoPanels.setOverviewOnRight(event.getRawX()
++                    >= DisplayController.INSTANCE.get(this).getInfo().currentSize.x / 2f);
+         }
+         if (taskAnimationManager.shouldIgnoreMotionEvents()) {
+             if (action == ACTION_DOWN || isHoverActionWithoutConsumer) {
+@@ -1324,6 +1328,13 @@ public class TouchInteractionService extends Service {
+                     displayId,
+                     ActiveGestureLog.INSTANCE.incrementLogId());
+             taskInfo = TopTaskTracker.INSTANCE.get(this).getCachedTopTask(false, displayId);
++            // Duo: a gesture on one screen acts on that screen's app (or home), whatever holds focus
++            // the whole display: the size of this service's window follows the screen that holds focus
++            final android.graphics.Point duoSize = DisplayController.INSTANCE.get(this).getInfo().currentSize;
++            final int[] duoPanel = DuoPanels.overviewPanel(duoSize.x, duoSize.y);
++            if (duoPanel != null) {
++                taskInfo = taskInfo.restrictedToPanel(duoPanel);
++            }
+             gestureState.updateRunningTask(taskInfo);
+         }
+         gestureState.setTrackpadGestureType(trackpadGestureType);
+diff --git a/quickstep/src/com/android/quickstep/views/RecentsView.java b/quickstep/src/com/android/quickstep/views/RecentsView.java
+index 111c99b53a..cd8d4a334c 100644
+--- a/quickstep/src/com/android/quickstep/views/RecentsView.java
++++ b/quickstep/src/com/android/quickstep/views/RecentsView.java
+@@ -1688,6 +1688,10 @@ public abstract class RecentsView<
+ 
+     public void setOverviewStateEnabled(boolean enabled) {
+         mOverviewStateEnabled = enabled;
++        if (enabled) {
++            // Duo: the overview lays out on the screen the gesture started on, which can change between openings
++            updateSizeAndPadding();
++        }
+         updateTaskStackListenerState();
+         mOrientationState.setRotationWatcherEnabled(enabled);
+         if (!enabled) {
+@@ -3000,6 +3004,7 @@ public abstract class RecentsView<
+     public void onGestureAnimationStart(GroupedTaskInfo groupedTaskInfo) {
+         Log.d(TAG, "onGestureAnimationStart - groupedTaskInfo: " + groupedTaskInfo);
+         setActiveGestureGroupedTaskInfo(groupedTaskInfo);
++        updateSizeAndPadding();
+ 
+         // This needs to be called before the other states are set since it can create the task view
+         if (mOrientationState.setGestureActive(true)) {
+diff --git a/src/com/android/launcher3/util/DuoPanels.java b/src/com/android/launcher3/util/DuoPanels.java
+index f2679b66d6..5d31b035cd 100644
+--- a/src/com/android/launcher3/util/DuoPanels.java
++++ b/src/com/android/launcher3/util/DuoPanels.java
+@@ -41,6 +41,22 @@ public final class DuoPanels {
+         return new int[][] {layout[DuoPanelGeometry.PANEL_0], layout[DuoPanelGeometry.PANEL_1]};
+     }
+ 
++    /** True when the last touch that could open the overview (a gesture or a tap) started on the right screen. */
++    private static volatile boolean sOverviewOnRight;
++
++    public static void setOverviewOnRight(boolean right) {
++        sOverviewOnRight = right;
++    }
++
++    /**
++     * The panel rect {l, t, r, b} the overview is laid out in: the screen the gesture started on, or null when the
++     * display is not a spanned / gapless Duo landscape.
++     */
++    public static int[] overviewPanel(int widthPx, int heightPx) {
++        int[][] halves = halves(widthPx, heightPx);
++        return halves == null ? null : halves[sOverviewOnRight ? 1 : 0];
++    }
++
+     public static boolean isSpannedLandscape(int widthPx, int heightPx) {
+         return halves(widthPx, heightPx) != null;
+     }
+-- 
+2.43.0
+
